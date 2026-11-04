@@ -1,0 +1,21 @@
+# Vercel 上传忽略清单（只影响部署包体积，不影响本地开发）
+# 注意：data/ 与 web/ 必须上传，它们是运行时的数据源和前端页面
+
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# 文档与答辩材料（体积大，线上用不到）
+docs/
+*.pptx
+*.slide
+data.zip
+logs/
+
+# 其他
+.git/
+tools/
+scripts/
+cypher/
+*.command

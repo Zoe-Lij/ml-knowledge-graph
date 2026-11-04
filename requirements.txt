@@ -1,0 +1,51 @@
+# =============================================================================
+# requirements.txt —— Python 依赖清单（机器学习知识图谱系统）
+#
+# 安装：pip install -r requirements.txt
+# 本文件即课程交付要求中的 requirement.txt（requirement.txt 是同内容副本，
+# 方便按课程文档里的命名提交）
+#
+# ⚠️ 版本锁定说明（答辩可能被问，务必记住）：
+#   py2neo 2021.2.4 只能配 Neo4j 4.4.x。Neo4j 5.x 改了 Bolt 握手协议，
+#   py2neo 会报 "No matching Bolt version" / "Cannot decode response"。
+#   本项目锁定 Neo4j 4.4.x LTS + py2neo 2021.2.4，这是官方兼容组合。
+# =============================================================================
+
+# ---------- 1. 图数据库写入（阶段2）----------
+# 本机 Neo4j 4.4.x：走 py2neo（旧版 Bolt 协议）
+py2neo==2021.2.4
+
+# 云端 Neo4j（Aura，5.x）：走官方驱动（新版 Bolt + TLS）
+# 线上用 Vercel 部署时，serverless 只能连托管实例，因此两条驱动都要在
+# store.py 里各就各位：URI 是 bolt:// 用 py2neo，neo4j+s:// 用官方驱动。
+neo4j>=5.14,<6
+
+# ---------- 2. 后端 API 与静态托管（阶段3/4）----------
+fastapi==0.156.4
+uvicorn[standard]==0.54.0
+python-dotenv==1.2.4
+
+# ---------- 3. 前端 ----------
+# 纯静态页面，D3.js 已本地化到 web/vendor/d3.v7.min.js，
+# 由 FastAPI 的 StaticFiles（Starlette 内置）托管，无 npm 依赖。
+
+# =============================================================================
+# 以下为上述 4 个包的间接依赖，pip 安装时自动解析，此处仅记录交付环境实测版本，
+# 便于复现问题；**不需要手动安装**，也不建议写进安装命令。
+#
+# anyio==4.15.1            # FastAPI 异步基座
+# click==8.5.0             # uvicorn 命令行
+# h11==0.16.0              # HTTP/1.1 协议实现
+# httptools==0.9.0         # uvicorn[standard] 的高速 HTTP 解析
+# idna==3.20               # 域名编码
+# pydantic==2.14.1         # FastAPI 请求/响应模型
+# pydantic_core==2.50.1
+# starlette==1.9.0         # FastAPI 底层框架（StaticFiles 来自这里）
+# typing_extensions==4.16.0
+# typing-inspection==0.4.4
+# uvloop==0.23.0           # uvicorn[standard] 事件循环（macOS/Linux）
+# watchfiles==1.3.0        # uvicorn --reload 热重载
+# websockets==17.3         # uvicorn[standard] WebSocket 支持
+#
+# 需要完整快照时：pip freeze > requirements.lock.txt
+# =============================================================================

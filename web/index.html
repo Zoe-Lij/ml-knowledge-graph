@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%231E4FA8'/%3E%3Ccircle cx='11' cy='13' r='3' fill='%23fff'/%3E%3Ccircle cx='21' cy='12' r='2.5' fill='%23fff'/%3E%3Ccircle cx='17' cy='21' r='3' fill='%23fff'/%3E%3Cpath d='M11 13L21 12M11 13L17 21M21 12L17 21' stroke='%23fff' stroke-width='1.4'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>机器学习知识图谱 · 可视化与智能问答</title>
+<!--
+  机器学习领域知识图谱 —— 前端单页（阶段4）
+  ------------------------------------------------------------------
+  1. 图谱区：D3 力导向图，节点可拖拽、悬浮显示实体信息、点击看详情
+  2. 问答区：输入自然语言 → POST /api/query → 答案 + 结果明细 + Cypher
+  3. 依赖：D3 v7（已本地化到 vendor/，断网可用），无构建、无框架
+  技术说明见 docs/05_frontend_design.md
+-->
+<style>
+  /* ===================== 基础变量与重置 ===================== */
+  :root{
+    --bg:#f4f6fa;
+    --panel:#ffffff;
+    --line:#e5e9f2;
+    --text:#1e2635;
+    --muted:#6b7688;
+    --accent:#3b6fd4;
+    --accent-soft:#eaf1ff;
+    --concept:#3B6FD4;
+    --algorithm:#7C5CD6;
+    --model:#E08A2E;
+    --metric:#2E9E6B;
+    --shadow:0 6px 24px rgba(23,35,61,.10);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;height:100vh;overflow:hidden;
+    display:flex;flex-direction:column;
+    background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;-webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;}
+  *::-webkit-scrollbar{width:8px;height:8px;}
+  *::-webkit-scrollbar-thumb{background:#cfd7e6;border-radius:8px;}
+  *::-webkit-scrollbar-track{background:transparent;}
+
+  /* ===================== 顶部栏 ===================== */
+  .topbar{
+    flex:0 0 auto;height:62px;padding:0 20px;
+    display:flex;align-items:center;justify-content:space-between;
+    background:#fff;border-bottom:1px solid var(--line);z-index:30;
+  }
+  .brand{display:flex;align-items:center;gap:12px;min-width:0;}
+  .logo{
+    width:36px;height:36px;border-radius:10px;flex:0 0 auto;
+    background:linear-gradient(135deg,#4b7bdc,#7c5cd6);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 10px rgba(76,110,214,.28);
+  }
+  .brand h1{font-size:16.5px;margin:0;font-weight:650;letter-spacing:.2px;}
+  .brand .sub{
+    margin:2px 0 0;font-size:11.5px;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .topbar-right{display:flex;align-items:center;gap:18px;}
+  .stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;}
+  .stat b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums;}
+  .stat em{font-style:normal;font-size:11px;color:var(--muted);}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;padding:5px 10px;border-radius:999px;
+    background:#f1f4fa;border:1px solid var(--line);color:var(--muted);
+  }
+  .badge i{width:6px;height:6px;border-radius:50%;background:#b9c2d4;display:block;}
+  .badge.ok{background:#eef8f1;border-color:#d3ecdb;color:#237a45;}
+  .badge.ok i{background:#2f9d5b;}
+  .badge.warn{background:#fff7e8;border-color:#f3e2bd;color:#8a6116;}
+  .badge.warn i{background:#d9962a;}
+
+  /* ===================== 主区域 ===================== */
+  .layout{
+    flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+    gap:12px;padding:12px 16px 14px;
+  }
+
+  /* ---------- 图谱舞台 ---------- */
+  .stage{
+    position:relative;flex:1 1 auto;min-height:0;
+    background:#fbfcfe;border:1px solid var(--line);
+    border-radius:var(--radius);overflow:hidden;
+    box-shadow:0 1px 3px rgba(16,24,40,.04);
+  }
+  #graph{
+    display:block;width:100%;height:100%;cursor:grab;
+    background-image:radial-gradient(#e3e9f4 1px,transparent 1px);
+    background-size:22px 22px;background-position:-1px -1px;
+    touch-action:none;
+  }
+  #graph:active{cursor:grabbing;}
+
+  /* SVG 元素样式 */
+  .link{stroke-linecap:round;transition:opacity .16s,stroke-width .16s;cursor:pointer;}
+  .link:hover{stroke-width:2.4 !important;stroke-opacity:1 !important;}
+  .link.low{stroke-dasharray:4 4;}
+  .link.hl{stroke-width:2.2 !important;opacity:1 !important;}
+  .link.dim{opacity:.06;}
+  .link.off{opacity:0 !important;pointer-events:none;}
+  .link.compare{stroke-dasharray:6 4;}
+
+  .node{cursor:pointer;transition:opacity .16s;}
+  .node circle{
+    stroke:#fff;stroke-width:1.5;
+    transition:stroke-width .15s,filter .15s;
+  }
+  .node text{
+    font-size:10.5px;fill:#3a4456;text-anchor:middle;
+    paint-order:stroke;stroke:#fbfcfe;stroke-width:3px;stroke-linejoin:round;
+    pointer-events:none;user-select:none;
+  }
+  .node.hl circle{stroke-width:2.6;filter:drop-shadow(0 0 6px rgba(59,111,212,.45));}
+  .node.dim{opacity:.12;}
+  .node.off{opacity:0 !important;pointer-events:none;}
+
+  /* ---------- 浮层面板（图例 / 详情） ---------- */
+  .panel{
+    position:absolute;z-index:10;
+    background:rgba(255,255,255,.94);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);
+  }
+  .legend{
+    top:14px;left:14px;width:206px;padding:12px 13px;
+    max-height:calc(100% - 28px);overflow:auto;
+  }
+  .panel-title{
+    font-size:11px;font-weight:650;color:var(--muted);
+    letter-spacing:.4px;margin:0 0 8px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .panel-title:not(:first-child){margin-top:12px;}
+  .panel-title span{font-weight:400;font-size:10px;color:#9aa4b6;letter-spacing:0;}
+  .legend-list{display:flex;flex-direction:column;gap:5px;}
+  .legend-item{
+    display:flex;align-items:center;gap:8px;padding:3px 5px;
+    border-radius:6px;cursor:pointer;transition:background .14s;
+    font-size:12px;color:#3a4456;border:none;background:transparent;text-align:left;width:100%;
+  }
+  .legend-item:hover{background:#f4f7fd;}
+  .legend-item.off{opacity:.38;text-decoration:line-through;}
+  .legend-item .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+  .legend-item .line{
+    width:16px;height:0;border-top:2px solid;flex:0 0 auto;
+  }
+  .legend-item .cnt{margin-left:auto;font-size:10.5px;color:#9aa4b6;font-variant-numeric:tabular-nums;}
+  .switch{
+    display:flex;align-items:center;gap:7px;margin-top:12px;
+    font-size:11.5px;color:#3a4456;cursor:pointer;line-height:1.4;
+  }
+  .switch input{accent-color:var(--accent);width:13px;height:13px;margin:0;}
+  .legend-actions{display:flex;gap:6px;margin-top:11px;}
+  .ghost{
+    flex:1;padding:6px 8px;font-size:11.5px;border-radius:8px;
+    border:1px solid var(--line);background:#fff;color:#4a5568;cursor:pointer;
+    transition:all .14s;white-space:nowrap;
+  }
+  .ghost:hover{border-color:#c5d3ee;background:#f7faff;color:var(--accent);}
+
+  /* ---------- 节点详情面板 ---------- */
+  .detail{
+    top:14px;right:14px;width:296px;padding:14px;
+    max-height:calc(100% - 28px);overflow:auto;
+  }
+  .detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+  .detail-title{font-size:15.5px;font-weight:650;line-height:1.3;}
+  .detail-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .icon-btn{
+    border:none;background:#f2f5fa;color:#6b7688;width:24px;height:24px;
+    border-radius:7px;cursor:pointer;font-size:15px;line-height:1;flex:0 0 auto;
+  }
+  .icon-btn:hover{background:#e7edf9;color:#33415c;}
+  .detail-tags{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+  .chip-type{
+    font-size:11px;padding:3px 8px;border-radius:999px;
+    color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);
+    border:1px solid color-mix(in srgb,var(--c) 30%,#fff);font-weight:600;
+  }
+  .mini{font-size:10.5px;color:var(--muted);background:#f5f7fb;padding:3px 7px;border-radius:6px;}
+  .detail-desc{font-size:12.5px;line-height:1.65;color:#44506a;margin:0 0 8px;}
+  .detail-alias{font-size:11.5px;color:var(--muted);margin:0 0 8px;}
+  .detail-sec{
+    font-size:11px;font-weight:650;color:var(--muted);
+    margin:12px 0 6px;padding-top:9px;border-top:1px dashed var(--line);
+  }
+  .rel-list{display:flex;flex-direction:column;gap:4px;}
+  .rel-item{
+    display:flex;align-items:center;gap:7px;width:100%;
+    padding:5px 7px;border-radius:7px;border:1px solid transparent;
+    background:#f7f9fd;cursor:pointer;font-size:12px;color:#33415c;text-align:left;
+    transition:all .13s;
+  }
+  .rel-item:hover{background:#eef4ff;border-color:#d7e3fb;color:var(--accent);}
+  .rel-item .rname{color:#7b869c;font-size:11px;flex:0 0 auto;}
+  .rel-item .peer{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .rel-item .arrow{color:#b6c0d2;font-size:11px;}
+
+  /* ---------- 舞台上的提示与控件 ---------- */
+  .stage-hint{
+    position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
+    font-size:11.5px;color:#8b96a9;background:rgba(255,255,255,.82);
+    padding:4px 12px;border-radius:999px;border:1px solid #eef1f7;
+    pointer-events:none;white-space:nowrap;
+  }
+  .zoom-controls{
+    position:absolute;right:14px;bottom:14px;z-index:10;
+    display:flex;flex-direction:column;gap:1px;
+    background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden;
+    box-shadow:0 2px 8px rgba(23,35,61,.08);
+  }
+  .zoom-controls button{
+    width:30px;height:28px;border:none;background:#fff;color:#5a667c;
+    font-size:16px;cursor:pointer;line-height:1;
+  }
+  .zoom-controls button:hover{background:#f2f6fd;color:var(--accent);}
+  .zoom-controls button+button{border-top:1px solid var(--line);}
+
+  /* ---------- 悬浮信息卡 ---------- */
+  .tooltip{
+    position:absolute;z-index:40;max-width:280px;padding:10px 12px;
+    background:rgba(30,38,53,.95);color:#fff;border-radius:10px;
+    font-size:12px;line-height:1.6;pointer-events:none;
+    opacity:0;transform:translate(-50%,-112%);transition:opacity .12s;
+    box-shadow:0 8px 24px rgba(20,28,45,.28);
+  }
+  .tooltip.show{opacity:1;}
+  .tooltip .tt-type{font-size:10.5px;opacity:.72;letter-spacing:.3px;}
+  .tooltip .tt-name{font-size:13.5px;font-weight:650;margin:1px 0 2px;}
+  .tooltip .tt-en{font-size:10.5px;opacity:.62;margin-bottom:5px;}
+  .tooltip .tt-desc{opacity:.9;}
+  .tooltip .tt-meta{margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.16);
+    font-size:10.5px;opacity:.7;}
+  .tooltip:after{
+    content:"";position:absolute;left:50%;bottom:-5px;margin-left:-5px;
+    border:5px solid transparent;border-top-color:rgba(30,38,53,.95);border-bottom:0;
+  }
+
+  /* ---------- 加载 / 错误 ---------- */
+  .loading{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(251,252,254,.86);font-size:13px;color:var(--muted);z-index:20;
+  }
+  .loading.hide{display:none;}
+  .error-box{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:24px;background:#fff;z-index:25;
+  }
+  .error-box[hidden]{display:none;}
+  .error-inner{max-width:520px;text-align:center;}
+  .error-inner h3{margin:0 0 8px;font-size:15px;color:#b4453c;}
+  .error-inner p{margin:0 0 10px;font-size:12.5px;color:var(--muted);line-height:1.7;}
+  .error-inner code{
+    display:inline-block;background:#f4f6fa;padding:3px 8px;border-radius:6px;
+    font-size:11.5px;color:#33415c;
+  }
+
+  /* ===================== 问答区 ===================== */
+  .qa{
+    flex:0 0 auto;height:clamp(228px,32vh,318px);
+    display:flex;flex-direction:column;gap:9px;
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    padding:13px 16px 12px;box-shadow:0 1px 3px rgba(16,24,40,.04);
+  }
+  .ask{display:flex;gap:10px;flex:0 0 auto;}
+  .ask input{
+    flex:1;height:40px;padding:0 14px;font-size:14px;color:var(--text);
+    border:1px solid #dbe2ef;border-radius:10px;background:#fbfcfe;outline:none;
+    transition:all .15s;
+  }
+  .ask input::placeholder{color:#a6b0c2;}
+  .ask input:focus{border-color:#9ab7ea;background:#fff;box-shadow:0 0 0 3px rgba(59,111,212,.10);}
+  .ask button{
+    width:92px;height:40px;border:none;border-radius:10px;cursor:pointer;
+    background:linear-gradient(135deg,#4b7bdc,#3b6fd4);color:#fff;
+    font-size:14px;font-weight:600;letter-spacing:1px;
+    box-shadow:0 3px 10px rgba(59,111,212,.24);transition:all .15s;
+  }
+  .ask button:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px);}
+  .ask button:disabled{opacity:.6;cursor:not-allowed;box-shadow:none;}
+
+  .chips{
+    flex:0 0 auto;display:flex;gap:7px;overflow-x:auto;padding-bottom:2px;
+    scrollbar-width:none;
+  }
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{
+    flex:0 0 auto;padding:4px 10px;border-radius:999px;cursor:pointer;
+    border:1px solid #e3e9f4;background:#fbfcfe;color:#55617a;font-size:11.5px;
+    transition:all .14s;white-space:nowrap;
+  }
+  .chip:hover{border-color:#b9cdf0;background:#f2f7ff;color:var(--accent);}
+
+  .answer-wrap{
+    flex:1 1 auto;min-height:0;overflow:auto;
+    border-top:1px dashed var(--line);padding-top:9px;
+  }
+  .answer-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .tag{
+    font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;
+    background:var(--accent-soft);color:#2a5cb8;border:1px solid #d8e5fb;
+  }
+  .meta{font-size:11px;color:#93a0b5;}
+  .answer{
+    margin:7px 0 0;font-size:14.5px;line-height:1.75;color:#25303f;
+    letter-spacing:.1px;
+  }
+  .answer mark{
+    background:#e8f0ff;color:#1f4bb0;border-radius:3px;padding:0 2px;font-weight:600;
+  }
+  .answer.error{color:#b4453c;}
+  .answer-sub{margin-top:9px;}
+  .matched{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:11.5px;color:var(--muted);}
+  .pill{
+    padding:3px 9px;border-radius:999px;font-size:11.5px;cursor:pointer;
+    border:1px solid #dde5f2;background:#fff;color:#3d4a61;transition:all .13s;
+  }
+  .pill:hover{border-color:#a9c2ec;color:var(--accent);background:#f6faff;}
+
+  /* 结果表格 */
+  .table-wrap{
+    margin-top:9px;border:1px solid var(--line);border-radius:9px;overflow:auto;
+    max-height:132px;
+  }
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{
+    position:sticky;top:0;background:#f7f9fd;color:#6b7688;font-weight:600;
+    text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);
+    white-space:nowrap;font-size:11px;
+  }
+  tbody td{padding:6px 10px;border-bottom:1px solid #f0f3f9;color:#3a4456;vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover td{background:#fafcff;}
+  td .name-link{color:var(--accent);cursor:pointer;text-decoration:none;border-bottom:1px dashed #b9cdf0;}
+  td .name-link:hover{color:#1f4bb0;}
+  .conf{
+    font-variant-numeric:tabular-nums;font-size:11px;padding:1px 6px;border-radius:5px;
+    background:#eef7f1;color:#237a45;
+  }
+  .conf.low{background:#fff5e6;color:#96631a;}
+  .more{font-size:11px;color:#93a0b5;padding:5px 2px;}
+
+  /* 路径链 */
+  .path{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:8px;}
+  .pnode{
+    padding:4px 10px;border-radius:8px;font-size:12px;cursor:pointer;
+    background:#f2f6fd;border:1px solid #dbe6f8;color:#2f4260;font-weight:550;
+  }
+  .pnode:hover{background:#e8f0ff;border-color:#b5cbef;color:var(--accent);}
+  .pedge{
+    display:inline-flex;align-items:center;gap:3px;font-size:10.5px;color:#8592a8;
+  }
+  .pedge b{color:#b9c4d6;font-weight:400;}
+  .pedge i{
+    font-style:normal;background:#f7f9fd;border:1px solid #e8edf6;
+    padding:1px 5px;border-radius:4px;
+  }
+
+  /* 证据区 */
+  .evidence{
+    margin-top:10px;border:1px solid var(--line);border-radius:9px;
+    background:#fbfcfe;overflow:hidden;
+  }
+  .evidence[hidden]{display:none;}
+  .evidence summary{
+    cursor:pointer;padding:7px 11px;font-size:11.5px;color:#6b7688;
+    list-style:none;user-select:none;
+  }
+  .evidence summary::-webkit-details-marker{display:none;}
+  .evidence summary:before{content:"▸ ";color:#a9b4c7;}
+  .evidence[open] summary:before{content:"▾ ";}
+  .evidence summary:hover{color:var(--accent);}
+  .evidence-body{padding:0 11px 11px;}
+  .ev-row{display:flex;gap:10px;font-size:11.5px;margin:5px 0;line-height:1.6;}
+  .ev-k{flex:0 0 62px;color:#93a0b5;}
+  .ev-v{color:#3a4456;word-break:break-word;}
+  .ev-label{font-size:11px;color:#93a0b5;margin:9px 0 4px;}
+  pre.cypher{
+    margin:0;padding:9px 11px;background:#1e2635;color:#d5e2f7;border-radius:8px;
+    font-family:"SF Mono",Menlo,Consolas,monospace;font-size:11px;line-height:1.6;
+    overflow:auto;max-height:150px;white-space:pre;
+  }
+  .small{margin-top:8px;padding:4px 10px;font-size:11px;flex:0 0 auto;display:inline-block;}
+
+  /* 窄屏适配（笔记本投屏常见 1280×720） */
+  @media (max-width:1100px){
+    .legend{width:186px;}
+    .detail{width:264px;}
+    .brand .sub{display:none;}
+  }
+  @media (max-width:820px){
+    .qa{height:44vh;}
+    .legend{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== 顶部栏 ===================== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7">
+        <circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="18" r="2.4"/><circle cx="19" cy="18" r="2.4"/>
+        <path d="M10.4 7.1 6.6 15.7M13.6 7.1l3.8 8.6M7.4 18h9.2"/>
+      </svg>
+    </div>
+    <div>
+      <h1>机器学习知识图谱</h1>
+      <p class="sub">Machine Learning Knowledge Graph · Neo4j + py2neo + D3.js</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="stat"><b id="stat-nodes">—</b><em>实体</em></div>
+    <div class="stat"><b id="stat-links">—</b><em>关系</em></div>
+    <span class="badge" id="badge-source"><i></i><span>连接中…</span></span>
+  </div>
+</header>
+
+<!-- ===================== 主区域 ===================== -->
+<main class="layout">
+  <!-- 图谱舞台 -->
+  <section class="stage" id="stage">
+    <svg id="graph" role="img" aria-label="机器学习知识图谱力导向图"></svg>
+
+    <!-- 图例与控制 -->
+    <aside class="panel legend" id="legend">
+      <div class="panel-title">实体类型 <span>点击隐藏</span></div>
+      <div class="legend-list" id="type-legend"></div>
+      <div class="panel-title">关系类型</div>
+      <div class="legend-list" id="rel-legend"></div>
+      <label class="switch">
+        <input type="checkbox" id="only-high">
+        <span>只看高置信关系（≥0.80）</span>
+      </label>
+      <div class="legend-actions">
+        <button class="ghost" id="btn-fit">适应窗口</button>
+        <button class="ghost" id="btn-unpin">释放节点</button>
+      </div>
+    </aside>
+
+    <!-- 节点详情 -->
+    <aside class="panel detail" id="detail" hidden></aside>
+
+    <div class="tooltip" id="tooltip"></div>
+    <div class="stage-hint">拖拽节点可固定位置 · 滚轮缩放 · 点击节点看详情 · 双击空白处复位</div>
+    <div class="zoom-controls">
+      <button id="btn-zoom-in" title="放大">+</button>
+      <button id="btn-zoom-out" title="缩小">−</button>
+    </div>
+
+    <div class="loading" id="loading">正在加载图谱数据…</div>
+    <div class="error-box" id="error-box" hidden>
+      <div class="error-inner">
+        <h3>图谱数据加载失败</h3>
+        <p id="error-msg"></p>
+        <p>后端服务没有响应。请在<strong>项目目录</strong>下执行一键启动脚本，然后刷新本页：</p>
+        <code>cd ~/研一/机器学习/课程设计 &amp;&amp; ./start.sh</code>
+      </div>
+    </div>
+  </section>
+
+  <!-- 问答区 -->
+  <section class="qa">
+    <form class="ask" id="ask-form" autocomplete="off">
+      <input id="ask-input" maxlength="200"
+             placeholder="用自然语言提问，例如：随机森林和梯度提升树有什么区别？">
+      <button type="submit" id="ask-btn">查询</button>
+    </form>
+
+    <div class="chips" id="chips"></div>
+
+    <div class="answer-wrap" id="answer-wrap">
+      <div class="answer-head">
+        <span class="tag" id="ans-intent">等待提问</span>
+        <span class="meta" id="ans-meta"></span>
+      </div>
+      <p class="answer" id="ans-text">
+        输入问题后，系统会把自然语言翻译成 Cypher 查询图数据库，并在这里给出中文解释。
+        也可以先点上面的示例问句试试。
+      </p>
+      <div class="answer-sub" id="ans-sub"></div>
+      <details class="evidence" id="evidence" hidden>
+        <summary>查询证据与执行细节（自然语言 → Cypher）</summary>
+        <div class="evidence-body" id="evidence-body"></div>
+      </details>
+    </div>
+  </section>
+</main>
+
+<!-- D3 本地化引用：断网也能演示；若文件缺失则回退 CDN -->
+<script src="vendor/d3.v7.min.js"></script>
+<script>
+  if (!window.d3) {
+    document.write('<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"><\/script>');
+  }
+</script>
+
+<script>
+/* =====================================================================
+ * 机器学习知识图谱 · 前端逻辑
+ * ---------------------------------------------------------------------
+ * 结构：
+ *   一、常量与状态
+ *   二、工具函数
+ *   三、图谱渲染（力导向图 + 拖拽 + 悬浮 + 缩放）
+ *   四、交互（高亮 / 详情 / 筛选）
+ *   五、自然语言问答
+ *   六、启动
+ * ===================================================================== */
+
+/* ---------- 一、常量与状态 ---------- */
+
+// 页面直接用 file:// 打开时，默认连本机 8000 端口；通过后端访问时走同源
+const API_BASE = location.protocol === 'file:' ? 'http://127.0.0.1:8000' : '';
+
+// 关系样式：颜色 / 是否虚线 / 是否带箭头 / 力导向的理想边长
+// 颜色与 Schema 文档第 7 节、docs/04 的图例保持一致
+const REL_STYLE = {
+  '属于':   { color: '#94A3B8', dash: null,    arrow: true,  dist: 78 },
+  '衍生自': { color: '#E08A2E', dash: null,    arrow: true,  dist: 88 },
+  '基于':   { color: '#7C5CD6', dash: null,    arrow: true,  dist: 82 },
+  '可对比': { color: '#2E9E6B', dash: '6 4',   arrow: false, dist: 98 },
+  '应用于': { color: '#3B6FD4', dash: null,    arrow: true,  dist: 96 },
+};
+// SVG marker 的 id 用英文键，避免中文 id 在个别浏览器上的兼容问题
+const REL_KEY = { '属于': 'belong', '衍生自': 'derive', '基于': 'based', '可对比': 'compare', '应用于': 'apply' };
+
+// 意图 → 中文标签（与 app/nl2cypher.py 的 QueryPlan.kind 一一对应）
+const INTENT_LABEL = {
+  detail: '实体详情', neighbors: '一跳关系', filter: '条件筛选',
+  compare: '双实体对比', path: '多跳路径', type_list: '类型列表',
+  stats: '统计聚合', search: '关键词检索',
+};
+
+const LOW_CONF = 0.80;   // 低于此值视为"Agent 推断"，虚线 + 提示
+
+// 运行时状态（集中一处，方便调试时在控制台查看）
+const state = {
+  nodes: [],            // 力导向用的节点副本（D3 会写入 x/y/vx/vy）
+  links: [],            // 力导向用的边副本（D3 会把 source/target 换成对象）
+  rawLinks: [],         // 原始边（source/target 仍是字符串），用于邻接查询
+  nodeById: new Map(),
+  meta: null,
+  hiddenTypes: new Set(),
+  onlyHigh: false,
+  selection: null,      // 当前点击选中的节点 id
+  queryFocus: [],       // 问答命中的节点集合（用于 hover 结束后恢复高亮）
+  lastQuery: null,      // 上一次问答响应，供"复制 Cypher"使用
+  fitted: false,
+};
+
+/* DOM 引用 */
+const stage    = document.getElementById('stage');
+const svg      = d3.select('#graph');
+const tooltip  = document.getElementById('tooltip');
+const detailEl = document.getElementById('detail');
+const loadingEl= document.getElementById('loading');
+const errorBox = document.getElementById('error-box');
+
+let width = 800, height = 520;
+let sim, nodeSel, linkSel, gRoot, zoomBehavior;
+const radius = d => 6 + Math.sqrt(Math.max(1, d.degree || 1)) * 2.1;
+
+/* ---------- 二、工具函数 ---------- */
+
+/** HTML 转义，所有来自接口的文本都要过一遍，避免 XSS */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+/** 正则转义（把实体名拼进正则时用） */
+function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+/** 把答案里的实体名加粗高亮 */
+function emphasize(text, names) {
+  const safe = esc(text);
+  const list = (names || []).filter(Boolean).sort((a, b) => b.length - a.length);
+  if (!list.length) return safe;
+  const re = new RegExp('(' + list.map(escRe).map(esc) .join('|') + ')', 'g');
+  return safe.replace(re, '<mark>$1</mark>');
+}
+
+/** 边的两端统一取出字符串 id（D3 会把它们替换成节点对象） */
+const idOf = v => (v && typeof v === 'object' ? v.id : v);
+
+/** 置信度显示：>=0.80 绿色，低于则橙色 */
+function confHtml(v) {
+  if (v == null || isNaN(v)) return '<span class="conf">—</span>';
+  const cls = Number(v) < LOW_CONF ? 'conf low' : 'conf';
+  return `<span class="${cls}">${Number(v).toFixed(2)}</span>`;
+}
+
+/** 类型颜色（优先用接口给的 color，没有则兜底） */
+function colorOf(node) {
+  if (!node) return '#94A3B8';
+  return node.color || (state.meta && state.meta.type_colors && state.meta.type_colors[node.type]) || '#94A3B8';
+}
+
+/** 邻接表：某个节点的直接邻居（去重） */
+function neighbors(id) {
+  const out = new Set();
+  state.rawLinks.forEach(l => {
+    if (l.source === id) out.add(l.target);
+    else if (l.target === id) out.add(l.source);
+  });
+  return [...out];
+}
+
+/** 按方向列出某个节点的关系（详情面板用） */
+function relationsOf(id) {
+  const outs = [], ins = [];
+  state.rawLinks.forEach(l => {
+    if (l.source === id) outs.push(l);
+    if (l.target === id) ins.push(l);
+  });
+  return { outs, ins };
+}
+
+/* ---------- 三、图谱渲染 ---------- */
+
+/** 计算可视区域，供缩放/自适应使用 */
+function measure() {
+  const r = stage.getBoundingClientRect();
+  width = Math.max(320, Math.round(r.width));
+  height = Math.max(260, Math.round(r.height));
+  svg.attr('viewBox', `0 0 ${width} ${height}`);
+}
+
+/** 初始化力导向图（只在数据加载后调用一次） */
+function buildGraph(data) {
+  measure();
+
+  // 数据副本：D3 会往节点上写 x/y/vx/vy，不能污染原始响应
+  state.nodes = data.nodes.map(n => ({ ...n }));
+  state.links = data.links.map(l => ({ ...l }));
+  state.rawLinks = data.links.map(l => ({ ...l }));
+  state.nodeById = new Map(state.nodes.map(n => [n.id, n]));
+  state.meta = data.meta || {};
+
+  // 初始位置：围绕中心撒点，避免所有点从 (0,0) 弹开
+  const cx = width / 2, cy = height / 2;
+  state.nodes.forEach((n, i) => {
+    const a = (i / state.nodes.length) * Math.PI * 2;
+    const r = Math.min(width, height) * (0.16 + 0.22 * ((i * 37) % 100) / 100);
+    n.x = cx + Math.cos(a) * r;
+    n.y = cy + Math.sin(a) * r;
+  });
+
+  // ---- defs：不同关系各自的箭头颜色 ----
+  const defs = svg.append('defs');
+  Object.entries(REL_STYLE).forEach(([rel, cfg]) => {
+    if (!cfg.arrow) return;
+    defs.append('marker')
+      .attr('id', 'arrow-' + REL_KEY[rel])
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 9).attr('refY', 0)
+      .attr('markerWidth', 5).attr('markerHeight', 5)
+      .attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-4L9,0L0,4').attr('fill', cfg.color);
+  });
+
+  gRoot = svg.append('g').attr('class', 'graph-root');
+
+  // ---- 边 ----
+  linkSel = gRoot.append('g').attr('class', 'links')
+    .selectAll('line')
+    .data(state.links, d => `${d.source}|${d.type}|${d.target}`)
+    .join('line')
+    .attr('class', d => {
+      const cls = ['link'];
+      if (d.type === '可对比') cls.push('compare');
+      if ((d.confidence ?? 1) < LOW_CONF) cls.push('low');
+      return cls.join(' ');
+    })
+    .attr('stroke', d => (REL_STYLE[d.type] || {}).color || '#B9C4D6')
+    .attr('stroke-width', 1.1)
+    .attr('stroke-opacity', 0.55)
+    .attr('marker-end', d => {
+      const cfg = REL_STYLE[d.type] || {};
+      return cfg.arrow ? `url(#arrow-${REL_KEY[d.type]})` : null;
+    })
+    // ---- 边的悬浮提示：显示「头实体 —关系→ 尾实体 + 置信度 + 依据」----
+    // 自检发现边原先只有颜色/虚线编码、无文字标签，悬浮看不到关系名，这里补齐
+    .on('mouseenter', function (event, d) { showLinkTooltip(event, d); })
+    .on('mousemove', moveTooltip)
+    .on('mouseleave', hideTooltip);
+
+  // ---- 节点（圆 + 标签） ----
+  nodeSel = gRoot.append('g').attr('class', 'nodes')
+    .selectAll('g')
+    .data(state.nodes, d => d.id)
+    .join('g')
+    .attr('class', 'node')
+    .call(d3.drag()
+      .on('start', dragStart)
+      .on('drag', dragging)
+      .on('end', dragEnd));
+
+  nodeSel.append('circle')
+    .attr('r', radius)
+    .attr('fill', d => colorOf(d))
+    .attr('fill-opacity', d => (d.confidence != null && d.confidence < 0.95 ? 0.82 : 0.92));
+
+  nodeSel.append('text')
+    .attr('y', d => radius(d) + 12)
+    .attr('font-size', d => (radius(d) > 14 ? 11.5 : 10))
+    .attr('font-weight', d => (radius(d) > 15 ? 600 : 400))
+    .text(d => d.id);
+
+  // ---- 悬浮 / 点击 ----
+  nodeSel
+    .on('mouseenter', function (event, d) {
+      if (d.__dragging) return;
+      showTooltip(event, d);
+      focusNodes([d.id, ...neighbors(d.id)]);
+    })
+    .on('mousemove', moveTooltip)
+    .on('mouseleave', () => {
+      hideTooltip();
+      restoreFocus();
+    })
+    .on('click', function (event, d) {
+      if (event.defaultPrevented) return;   // 拖拽结束的那次 click 不算点击
+      event.stopPropagation();
+      selectNode(d.id);
+    });
+
+  // ---- 力模拟 ----
+  sim = d3.forceSimulation(state.nodes)
+    .force('link', d3.forceLink(state.links)
+      .id(d => d.id)
+      .distance(d => (REL_STYLE[d.type] || {}).dist || 86)
+      .strength(d => (d.type === '可对比' ? 0.22 : 0.4)))
+    .force('charge', d3.forceManyBody().strength(-300).distanceMax(560))
+    .force('collide', d3.forceCollide().radius(d => radius(d) + 9).iterations(2))
+    .force('x', d3.forceX(width / 2).strength(0.035))
+    .force('y', d3.forceY(height / 2).strength(0.035))
+    .on('tick', ticked)
+    .on('end', () => { if (!state.fitted) { state.fitted = true; fitTo(); } });
+
+  // ---- 缩放 / 平移 ----
+  zoomBehavior = d3.zoom()
+    .scaleExtent([0.25, 3.2])
+    .on('zoom', e => gRoot.attr('transform', e.transform));
+  svg.call(zoomBehavior).on('dblclick.zoom', null);
+  svg.on('click', () => { /* 点空白：取消选中 */ closeDetail(); });
+  svg.on('dblclick', () => { clearQueryFocus(); closeDetail(); fitTo(); });
+
+  renderLegend();
+  applyVisibility();
+}
+
+/** 每帧更新坐标；边按节点半径做裁剪，箭头不会被圆盖住 */
+function ticked() {
+  linkSel.each(function (d) {
+    const s = d.source, t = d.target;
+    if (s.x == null || t.x == null) return;
+    const dx = t.x - s.x, dy = t.y - s.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const rs = radius(s) + 1.5;
+    const hasArrow = !!(REL_STYLE[d.type] || {}).arrow;
+    const rt = radius(t) + (hasArrow ? 7 : 1.5);
+    d3.select(this)
+      .attr('x1', s.x + dx / len * rs)
+      .attr('y1', s.y + dy / len * rs)
+      .attr('x2', t.x - dx / len * rt)
+      .attr('y2', t.y - dy / len * rt);
+  });
+  nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
+}
+
+/* ---- 拖拽：拖动即固定（fx/fy），"释放节点"按钮可全部解锁 ---- */
+function dragStart(event, d) {
+  d.__dragging = true;
+  hideTooltip();
+  if (!event.active) sim.alphaTarget(0.25).restart();
+  d.fx = d.x; d.fy = d.y;
+}
+function dragging(event, d) {
+  d.fx = event.x; d.fy = event.y;
+}
+function dragEnd(event, d) {
+  if (!event.active) sim.alphaTarget(0);
+  // 保留 fx/fy：演示时希望"摆好的位置别乱跑"，需要复原点"释放节点"
+  setTimeout(() => { d.__dragging = false; }, 60);
+}
+
+/* ---- 视角控制 ---- */
+/** 缩放到能装下所有可见节点 */
+function fitTo(animate = true) {
+  const pts = state.nodes.filter(n => n.x != null && !state.hiddenTypes.has(n.type));
+  if (!pts.length) return;
+  const xs = pts.map(n => n.x), ys = pts.map(n => n.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const pad = 70;
+  const scale = Math.min(1.6, 0.92 * Math.min(width / (x1 - x0 + pad * 2), height / (y1 - y0 + pad * 2)));
+  const tx = width / 2 - scale * (x0 + x1) / 2;
+  const ty = height / 2 - scale * (y0 + y1) / 2;
+  const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+  const target = animate ? svg.transition().duration(650) : svg;
+  target.call(zoomBehavior.transform, t);
+}
+
+/** 缩放到某个点（问答命中单个实体时用） */
+function centerOn(names, scale = 1.5) {
+  const pts = names.map(n => state.nodeById.get(n)).filter(n => n && n.x != null);
+  if (!pts.length) return;
+  if (pts.length === 1) {
+    const n = pts[0];
+    const t = d3.zoomIdentity.translate(width / 2 - scale * n.x, height / 2 - scale * n.y).scale(scale);
+    svg.transition().duration(600).call(zoomBehavior.transform, t);
+    return;
+  }
+  // 多个点：装下它们的包围盒
+  const xs = pts.map(n => n.x), ys = pts.map(n => n.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const s = Math.min(1.6, 0.8 * Math.min(width / (x1 - x0 + 200), height / (y1 - y0 + 200)));
+  const t = d3.zoomIdentity
+    .translate(width / 2 - s * (x0 + x1) / 2, height / 2 - s * (y0 + y1) / 2)
+    .scale(s);
+  svg.transition().duration(650).call(zoomBehavior.transform, t);
+}
+
+/* ---------- 四、交互：高亮 / 详情 / 图例筛选 ---------- */
+
+/** 高亮指定节点集合，其余变淡 */
+function focusNodes(names) {
+  const set = new Set(names);
+  nodeSel.classed('dim', d => !set.has(d.id)).classed('hl', d => set.has(d.id));
+  linkSel
+    .classed('dim', l => !(set.has(idOf(l.source)) && set.has(idOf(l.target))))
+    .classed('hl', l => set.has(idOf(l.source)) && set.has(idOf(l.target)));
+}
+
+/** 取消高亮 */
+function clearFocus() {
+  nodeSel.classed('dim', false).classed('hl', false);
+  linkSel.classed('dim', false).classed('hl', false);
+}
+
+/** 鼠标移开后：若问答有命中，恢复到问答高亮；否则全部复原 */
+function restoreFocus() {
+  if (state.queryFocus.length) focusNodes(state.queryFocus);
+  else clearFocus();
+}
+
+/** 设置问答高亮（同时记住，供 hover 结束后恢复） */
+function setQueryFocus(names) {
+  state.queryFocus = [...new Set(names)];
+  if (state.queryFocus.length) focusNodes(state.queryFocus);
+  else clearFocus();
+}
+function clearQueryFocus() {
+  state.queryFocus = [];
+  clearFocus();
+}
+
+/** 点击节点 → 右侧详情面板 */
+function selectNode(id) {
+  const node = state.nodeById.get(id);
+  if (!node) return;
+  state.selection = id;
+  const { outs, ins } = relationsOf(id);
+  const alias = (node.aliases || '').split('|').filter(Boolean).join('、');
+
+  // 按关系类型分组，便于阅读
+  const group = (list, dir) => {
+    const byRel = new Map();
+    list.forEach(l => {
+      const key = l.type;
+      if (!byRel.has(key)) byRel.set(key, []);
+      byRel.get(key).push({ peer: dir === 'out' ? l.target : l.source, conf: l.confidence });
+    });
+    return [...byRel.entries()].map(([rel, items]) => `
+      <div class="rel-item" style="cursor:default;background:transparent;border:none;padding:2px 0 0;">
+        <span class="rname">${esc(rel)}${dir === 'out' ? ' →' : ' ←'}</span>
+        <span class="peer" style="font-weight:400;color:#8b96a9;">${items.length} 个</span>
+      </div>
+      ${items.map(it => `
+        <button class="rel-item" data-goto="${esc(it.peer)}">
+          <span class="arrow">${dir === 'out' ? '→' : '←'}</span>
+          <span class="peer">${esc(it.peer)}</span>
+          ${it.conf != null && it.conf < LOW_CONF ? '<span class="mini" style="margin-left:auto;">推断</span>' : ''}
+        </button>`).join('')}
+    `).join('');
+  };
+
+  detailEl.hidden = false;
+  detailEl.innerHTML = `
+    <div class="detail-head">
+      <div>
+        <div class="detail-title">${esc(node.id)}</div>
+        <div class="detail-sub">${esc(node.en_name || '')}</div>
+      </div>
+      <button class="icon-btn" id="detail-close" title="关闭">×</button>
+    </div>
+    <div class="detail-tags">
+      <span class="chip-type" style="--c:${colorOf(node)}">${esc(node.type)}</span>
+      <span class="mini">度数 ${node.degree ?? '-'}</span>
+      <span class="mini">置信度 ${node.confidence != null ? Number(node.confidence).toFixed(2) : '-'}</span>
+      ${node.eid ? `<span class="mini">${esc(node.eid)}</span>` : ''}
+    </div>
+    <p class="detail-desc">${esc(node.description || '暂无描述')}</p>
+    ${alias ? `<p class="detail-alias">别名：${esc(alias)}</p>` : ''}
+    ${outs.length ? `<div class="detail-sec">出边关系（${outs.length}）</div><div class="rel-list">${group(outs, 'out')}</div>` : ''}
+    ${ins.length ? `<div class="detail-sec">入边关系（${ins.length}）</div><div class="rel-list">${group(ins, 'in')}</div>` : ''}
+    ${!outs.length && !ins.length ? '<p class="detail-alias">该实体暂无关联关系。</p>' : ''}
+  `;
+
+  // 高亮自身 + 邻居（与 hover 一致，方便看局部结构）
+  focusNodes([id, ...neighbors(id)]);
+}
+
+function closeDetail() {
+  detailEl.hidden = true;
+  state.selection = null;
+  restoreFocus();
+}
+
+/* ---- 图例：类型可点击筛选，关系仅作说明 ---- */
+function renderLegend() {
+  const meta = state.meta || {};
+  const byType = meta.by_type || {};
+  const byRel = meta.by_relation || {};
+
+  // 实体类型（可点击隐藏）
+  const typeBox = d3.select('#type-legend');
+  typeBox.selectAll('*').remove();
+  Object.keys(meta.type_colors || {}).forEach(type => {
+    const row = typeBox.append('button')
+      .attr('class', 'legend-item')
+      .attr('data-type', type)
+      .on('click', function () {
+        if (state.hiddenTypes.has(type)) state.hiddenTypes.delete(type);
+        else state.hiddenTypes.add(type);
+        d3.select(this).classed('off', state.hiddenTypes.has(type));
+        applyVisibility();
+      });
+    row.append('span').attr('class', 'dot')
+      .style('background', meta.type_colors[type]);
+    row.append('span').text(type);
+    row.append('span').attr('class', 'cnt').text(byType[type] != null ? byType[type] : '');
+  });
+
+  // 关系类型（只展示样式说明）
+  const relBox = d3.select('#rel-legend');
+  relBox.selectAll('*').remove();
+  Object.keys(REL_STYLE).forEach(rel => {
+    const cfg = REL_STYLE[rel];
+    const row = relBox.append('div').attr('class', 'legend-item').style('cursor', 'default');
+    row.append('span').attr('class', 'line')
+      .style('border-top-color', cfg.color)
+      .style('border-top-style', cfg.dash ? 'dashed' : 'solid');
+    row.append('span').text(rel);
+    row.append('span').attr('class', 'cnt').text(byRel[rel] != null ? byRel[rel] : '');
+  });
+
+  // 置信度说明
+  const note = relBox.append('div')
+    .style('font-size', '10.5px').style('color', '#9aa4b6')
+    .style('margin-top', '4px').style('line-height', '1.5');
+  note.text('虚线段 = Agent 推断（置信度 < 0.80）');
+}
+
+/** 应用"类型隐藏 / 只看高置信"两个筛选 */
+function applyVisibility() {
+  const hidden = state.hiddenTypes;
+  nodeSel.classed('off', d => hidden.has(d.type));
+  linkSel.classed('off', l => {
+    const s = state.nodeById.get(idOf(l.source));
+    const t = state.nodeById.get(idOf(l.target));
+    if (!s || !t) return true;
+    if (hidden.has(s.type) || hidden.has(t.type)) return true;
+    if (state.onlyHigh && (l.confidence ?? 1) < LOW_CONF) return true;
+    return false;
+  });
+}
+
+/* ---- 悬浮信息卡 ---- */
+function showTooltip(event, d) {
+  const alias = (d.aliases || '').split('|').filter(Boolean).slice(0, 3).join('、');
+  tooltip.innerHTML = `
+    <div class="tt-type" style="color:${colorOf(d)}">${esc(d.type)}</div>
+    <div class="tt-name">${esc(d.id)}</div>
+    ${d.en_name ? `<div class="tt-en">${esc(d.en_name)}</div>` : ''}
+    <div class="tt-desc">${esc(d.description || '')}</div>
+    <div class="tt-meta">关联 ${d.degree ?? '-'} 条${alias ? ' · 别名：' + esc(alias) : ''}</div>
+  `;
+  tooltip.classList.add('show');
+  moveTooltip(event);
+}
+function moveTooltip(event) {
+  const r = stage.getBoundingClientRect();
+  let x = event.clientX - r.left;
+  let y = event.clientY - r.top - 12;
+  // 防止贴边被裁掉
+  x = Math.max(150, Math.min(width - 150, x));
+  if (y < 130) y = event.clientY - r.top + 130;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+function hideTooltip() { tooltip.classList.remove('show'); }
+
+/* ---- 边的悬浮信息卡：头 —关系→ 尾 ---- */
+function showLinkTooltip(event, d) {
+  const src = (typeof d.source === 'object' ? d.source.id : d.source) || '';
+  const tgt = (typeof d.target === 'object' ? d.target.id : d.target) || '';
+  const cfg = REL_STYLE[d.type] || {};
+  tooltip.innerHTML = `
+    <div class="tt-type" style="color:${cfg.color || '#B9C4D6'}">关系 · ${esc(d.type)}</div>
+    <div class="tt-name">${esc(src)} → ${esc(tgt)}</div>
+    ${d.description ? `<div class="tt-desc">${esc(d.description)}</div>` : ''}
+    <div class="tt-meta">置信度 ${d.confidence ?? '—'}${d.evidence ? ' · ' + esc(d.evidence) : ''}</div>
+  `;
+  tooltip.classList.add('show');
+  moveTooltip(event);
+}
+
+/* ---------- 五、自然语言问答 ---------- */
+
+const askForm  = document.getElementById('ask-form');
+const askInput = document.getElementById('ask-input');
+const askBtn   = document.getElementById('ask-btn');
+const ansIntent= document.getElementById('ans-intent');
+const ansMeta  = document.getElementById('ans-meta');
+const ansText  = document.getElementById('ans-text');
+const ansSub   = document.getElementById('ans-sub');
+const evidence = document.getElementById('evidence');
+const evidenceBody = document.getElementById('evidence-body');
+
+/** 加载示例问句，渲染成一行快捷按钮 */
+async function loadExamples() {
+  const box = document.getElementById('chips');
+  let list = [];
+  try {
+    const res = await fetch(API_BASE + '/api/examples');
+    if (res.ok) list = (await res.json()).examples || [];
+  } catch (_) { /* 后端没起来时用兜底示例，页面不至于空着 */ }
+  if (!list.length) {
+    list = [
+      { text: '什么是过拟合？' },
+      { text: '随机森林属于哪一类算法？' },
+      { text: '哪些算法可以做异常检测？' },
+      { text: '随机森林和梯度提升树有什么区别？' },
+      { text: '随机森林和K均值聚类怎么连起来？' },
+    ];
+  }
+  box.innerHTML = '';
+  list.slice(0, 9).forEach(item => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.type = 'button';
+    b.textContent = item.text;
+    b.title = item.intent ? '示例：' + item.intent : '';
+    b.addEventListener('click', () => {
+      askInput.value = item.text;
+      askForm.requestSubmit();
+    });
+    box.appendChild(b);
+  });
+}
+
+/** 提交提问 */
+askForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = askInput.value.trim();
+  if (!q) { askInput.focus(); return; }
+
+  askBtn.disabled = true;
+  askBtn.textContent = '查询中';
+  ansIntent.textContent = '解析中';
+  ansMeta.textContent = '';
+  ansText.className = 'answer';
+  ansText.textContent = '正在把问题翻译成 Cypher 并查询图数据库…';
+  ansSub.innerHTML = '';
+  evidence.hidden = true;
+
+  const t0 = performance.now();
+  try {
+    const res = await fetch(API_BASE + '/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q }),
+    });
+    // 400（注入拦截 / 参数非法）与 500 也会返回 JSON 的 detail 字段
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+
+    state.lastQuery = data;
+    renderAnswer(data);
+    highlightFromAnswer(data);
+  } catch (err) {
+    ansIntent.textContent = '请求失败';
+    ansMeta.textContent = '';
+    ansText.className = 'answer error';
+    ansText.textContent = '查询失败：' + err.message;
+    ansSub.innerHTML = `<div class="more">后端服务没有响应。请在项目目录执行 <code>./start.sh</code> 启动服务后重试（页面不用关，启动后直接再点「查询」即可）</div>`;
+    clearQueryFocus();
+  } finally {
+    askBtn.disabled = false;
+    askBtn.textContent = '查询';
+    const cost = Math.round(performance.now() - t0);
+    if (!ansMeta.textContent) ansMeta.textContent = `往返 ${cost} ms`;
+  }
+});
+
+/** 渲染答案、明细、证据 */
+function renderAnswer(d) {
+  ansIntent.textContent = INTENT_LABEL[d.intent] || d.intent || '查询结果';
+
+  // 元信息：耗时 / 数据源 / 是否降级 / 是否放宽类型
+  const meta = [];
+  meta.push(`${Math.round(d.elapsed_ms ?? 0)} ms`);
+  meta.push(d.source === 'neo4j' ? '数据源 Neo4j' : '数据源 本地图（降级）');
+  if (d.relaxed) meta.push('已放宽类型限制');
+  ansMeta.textContent = meta.join(' · ');
+  if (d.warning) ansMeta.title = d.warning;
+
+  const names = (d.matched_entities || []).map(e => e.name);
+  ansText.className = 'answer';
+  ansText.innerHTML = emphasize(d.answer || '（无回答）', names);
+
+  // 命中实体 + 明细
+  let sub = '';
+  if (names.length) {
+    sub += `<div class="matched">命中实体：${names
+      .map(n => `<button class="pill" data-goto="${esc(n)}">${esc(n)}</button>`).join('')}</div>`;
+  }
+  sub += renderDetailBlock(d);
+  ansSub.innerHTML = sub;
+
+  // 证据区
+  evidence.hidden = false;
+  evidenceBody.innerHTML = `
+    <div class="ev-row"><span class="ev-k">命中规则</span><span class="ev-v">${esc(d.rule || '-')}</span></div>
+    <div class="ev-row"><span class="ev-k">识别实体</span><span class="ev-v">${names.length ? names.map(esc).join('、') : '未识别到已知实体'}</span></div>
+    <div class="ev-label">Cypher（实际下发给 Neo4j 的语句）</div>
+    <pre class="cypher">${esc(d.cypher || '')}</pre>
+    <div class="ev-label">参数</div>
+    <pre class="cypher">${esc(JSON.stringify(d.params || {}, null, 2))}</pre>
+    <button class="ghost small" id="btn-copy">复制 Cypher</button>
+  `;
+  const copyBtn = document.getElementById('btn-copy');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      const text = (state.lastQuery && state.lastQuery.cypher) || '';
+      navigator.clipboard?.writeText(text).then(
+        () => { copyBtn.textContent = '已复制'; setTimeout(() => (copyBtn.textContent = '复制 Cypher'), 1500); },
+        () => { copyBtn.textContent = '复制失败'; }
+      );
+    });
+  }
+}
+
+/**
+ * 按意图渲染结果明细：
+ * 路径画成链条，其余按意图选择列，统一放进可滚动表格。
+ */
+function renderDetailBlock(d) {
+  const rows = d.rows || [];
+
+  // ① 多跳路径：用「节点 → 关系 → 节点」链条展示，比表格直观
+  if (d.intent === 'path' && d.path && (d.path.names || []).length) {
+    return renderPath(d.path);
+  }
+
+  // ② 对比：直接关系 + 共同关联
+  if (d.intent === 'compare') {
+    let html = '';
+    if ((d.direct || []).length) {
+      html += `<div class="path">${d.direct.map(x => `
+        <span class="pedge"><i>${esc(x.relation)}</i></span>
+        <span class="pnode" style="cursor:default">${esc(x.description || '')}</span>
+        ${confHtml(x.confidence)}
+      `).join('')}</div>`;
+    }
+    if (rows.length) {
+      html += tableHtml(['关联知识点', '类型', '前者关系', '后者关系'], rows.map(r => [
+        `<span class="name-link" data-goto="${esc(r.name)}">${esc(r.name)}</span>`,
+        esc(r.type || ''),
+        esc(r.rel_a || '—'),
+        esc(r.rel_b || '—'),
+      ]), rows.length);
+    }
+    return html;
+  }
+
+  if (!rows.length) return '';
+
+  // ③ 其余意图：按字段差异选列
+  const cap = 20;
+  if (d.intent === 'filter') {
+    return tableHtml(['实体', '类型', '关系', '置信度'], rows.slice(0, cap).map(r => [
+      `<span class="name-link" data-goto="${esc(r.name)}">${esc(r.name)}</span>`,
+      esc(r.type || ''), esc(r.relation || ''), confHtml(r.confidence),
+    ]), rows.length, cap);
+  }
+  if (d.intent === 'neighbors' || d.intent === 'detail') {
+    return tableHtml(['关系', '方向', '关联实体', '类型', '置信度'], rows.slice(0, cap).map(r => [
+      esc(r.relation || ''),
+      r.direction === 'in' ? '← 入' : '→ 出',
+      `<span class="name-link" data-goto="${esc(r.name)}">${esc(r.name)}</span>`,
+      esc(r.type || ''), confHtml(r.confidence),
+    ]), rows.length, cap);
+  }
+  if (d.intent === 'stats') {
+    return tableHtml(['排名', '实体', '类型', '度数'], rows.slice(0, 10).map((r, i) => [
+      String(i + 1),
+      `<span class="name-link" data-goto="${esc(r.name)}">${esc(r.name)}</span>`,
+      esc(r.type || ''), String(r.degree ?? ''),
+    ]), rows.length, 10);
+  }
+  // type_list / search：名称 + 类型 + 说明
+  return tableHtml(['名称', '类型', '说明'], rows.slice(0, cap).map(r => [
+    `<span class="name-link" data-goto="${esc(r.name)}">${esc(r.name)}</span>`,
+    esc(r.type || ''), esc(r.description || ''),
+  ]), rows.length, cap);
+}
+
+/** 表格 HTML 片段 */
+function tableHtml(head, body, total, cap) {
+  const more = cap && total > cap
+    ? `<div class="more">共 ${total} 条，此处显示前 ${cap} 条。完整结果见上方文字说明。</div>` : '';
+  return `<div class="table-wrap"><table>
+    <thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${body.map(cells => `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>${more}`;
+}
+
+/** 路径链条：随机森林 → 集成学习 → … 每一步标关系与置信度 */
+function renderPath(path) {
+  const names = path.names || [], rels = path.rels || [], confs = path.confs || [];
+  const srcs = path.srcs || [];
+  let html = `<div class="path">`;
+  names.forEach((n, i) => {
+    html += `<span class="pnode" data-goto="${esc(n)}">${esc(n)}</span>`;
+    if (i < rels.length) {
+      // 有真实边方向时按存储方向画箭头：反向遍历显示 "A ←关系— B"
+      const fwd = !srcs.length || srcs[i] === names[i];
+      html += `<span class="pedge"><b>${fwd ? '—' : '←'}</b><i>${esc(rels[i])}</i><b>${fwd ? '→' : '—'}</b></span>`;
+    }
+  });
+  html += `</div>`;
+  const low = confs.filter(c => c != null && c < LOW_CONF).length;
+  html += `<div class="more">共 ${path.hops} 跳${low ? `，其中 ${low} 条关系为 Agent 推断（置信度 &lt; 0.80）` : ''}。</div>`;
+  return html;
+}
+
+/** 点击答案里的实体 / 路径节点 → 图上定位并打开详情 */
+ansSub.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-goto]');
+  if (!el) return;
+  const name = el.getAttribute('data-goto');
+  if (!name || !state.nodeById.has(name)) return;
+  selectNode(name);
+  centerOn([name], 1.5);
+});
+
+// 详情面板里的邻居跳转 + 关闭
+detailEl.addEventListener('click', (e) => {
+  if (e.target.id === 'detail-close') { closeDetail(); return; }
+  const el = e.target.closest('[data-goto]');
+  if (!el) return;
+  const name = el.getAttribute('data-goto');
+  if (state.nodeById.has(name)) { selectNode(name); centerOn([name], 1.5); }
+});
+
+/** 问答命中后：图上高亮 + 缩放到命中子图 */
+function highlightFromAnswer(d) {
+  let names = (d.nodes || []).map(n => n.id);
+  if (!names.length) names = (d.rows || []).map(r => r.name).filter(Boolean);
+  names = names.filter(n => state.nodeById.has(n));
+  if (!names.length) { clearQueryFocus(); return; }
+  setQueryFocus(names);
+  // 统计类问句节点太多，缩放会缩得过小，这里只在 ≤12 个时定位
+  if (names.length <= 12) centerOn(names, names.length === 1 ? 1.6 : 1.15);
+}
+
+/* ---------- 六、启动 ---------- */
+
+/** 加载图谱数据 */
+async function loadGraph() {
+  try {
+    const res = await fetch(API_BASE + '/api/graph', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.nodes || !data.nodes.length) throw new Error('接口返回的节点为空');
+
+    buildGraph(data);
+
+    // 顶部统计与数据源标记
+    document.getElementById('stat-nodes').textContent = data.nodes.length;
+    document.getElementById('stat-links').textContent = data.links.length;
+    const badge = document.getElementById('badge-source');
+    const source = (data.meta && data.meta.source) || 'neo4j';
+    const degraded = !!(data.meta && data.meta.degraded);
+    badge.className = 'badge ' + (degraded ? 'warn' : 'ok');
+    // degraded 不代表"坏了"：线上（Vercel）就是服务端只读数据集模式，措辞保持中性、如实
+    badge.innerHTML = `<i></i><span>${degraded ? '只读数据集模式' : 'Neo4j 已连接'}</span>`;
+    badge.title = `数据源：${source}（${degraded ? '服务端 data/kg.json，113 实体 / 258 关系' : 'Neo4j 图数据库'}）`;
+
+    loadingEl.classList.add('hide');
+  } catch (err) {
+    loadingEl.classList.add('hide');
+    errorBox.hidden = false;
+    document.getElementById('error-msg').textContent =
+      `无法读取 /api/graph（${err.message}）。当前页面地址：${location.href}`;
+  }
+}
+
+/** 尺寸变化时重算中心力，图不会被挤到角落 */
+const ro = new ResizeObserver(() => {
+  const r = stage.getBoundingClientRect();
+  if (!sim || Math.abs(r.width - width) < 4 && Math.abs(r.height - height) < 4) return;
+  measure();
+  sim.force('x', d3.forceX(width / 2).strength(0.035))
+     .force('y', d3.forceY(height / 2).strength(0.035))
+     .alpha(0.2).restart();
+});
+ro.observe(stage);
+
+/* 工具栏按钮 */
+document.getElementById('btn-fit').addEventListener('click', () => fitTo());
+document.getElementById('btn-unpin').addEventListener('click', () => {
+  state.nodes.forEach(n => { n.fx = null; n.fy = null; });
+  sim.alpha(0.4).restart();
+});
+document.getElementById('btn-zoom-in').addEventListener('click', () => svg.transition().duration(250).call(zoomBehavior.zoomIn, 1.35));
+document.getElementById('btn-zoom-out').addEventListener('click', () => svg.transition().duration(250).call(zoomBehavior.zoomOut, 1.35));
+document.getElementById('only-high').addEventListener('change', (e) => {
+  state.onlyHigh = e.target.checked;
+  applyVisibility();
+});
+
+// Esc 关闭详情
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeDetail();
+});
+
+// 启动
+// 支持深链：index.html?q=随机森林属于哪一类算法？ —— 打开即自动提问，
+// 答辩时可以把"某道题"直接做成一个链接，不用现场打字。
+const autoQ = new URLSearchParams(location.search).get('q');
+if (autoQ) askInput.value = autoQ;
+
+loadExamples();
+loadGraph().then(() => {
+  if (autoQ) setTimeout(() => askForm.requestSubmit(), 700);
+});
+</script>
+</body>
+</html>

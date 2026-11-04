@@ -1,0 +1,29 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# 含数据库密码，不要提交
+.env
+
+# 虚拟环境
+venv/
+.venv/
+
+# 安全审计日志（运行时生成）
+logs/
+
+# 云端部署凭据（Aura 密码 / Vercel Token）
+.env.vercel
+
+# 工作区杂物（AI 会话缓存、PPT 构建缓存、压缩包）
+.workbuddy/
+.slidep/
+.cache/
+data.zip
+*.genie
+
+# macOS
+.DS_Store
+
+# 课程交付材料（文档 / PPT / 截图）：只保留在本地，不随仓库分发
+docs/

@@ -1,0 +1,114 @@
+id,name,type,label,en_name,aliases,description,color,confidence,source
+C01,监督学习,机器学习概念,Concept,Supervised Learning,有监督学习|supervised learning,利用带标签数据学习输入到输出映射的学习范式,#3B6FD4,1.00,课程语料
+C02,无监督学习,机器学习概念,Concept,Unsupervised Learning,unsupervised learning|无监督,从无标签数据中发现结构与模式的范式,#3B6FD4,1.00,课程语料
+C03,半监督学习,机器学习概念,Concept,Semi-Supervised Learning,semi-supervised|半监督,用少量标签数据与大量无标签数据联合训练的范式,#3B6FD4,1.00,课程语料
+C04,自监督学习,机器学习概念,Concept,Self-Supervised Learning,self-supervised|自监督,从数据自身构造监督信号进行预训练的范式,#3B6FD4,0.90,Agent 扩展
+C05,强化学习,机器学习概念,Concept,Reinforcement Learning,RL|reinforcement learning,智能体与环境交互、依据奖励信号学习策略的范式,#3B6FD4,1.00,课程语料
+C06,集成学习,机器学习概念,Concept,Ensemble Learning,ensemble|集成方法,组合多个基学习器以提升泛化能力的范式,#3B6FD4,0.90,Agent 扩展
+C07,深度学习,机器学习概念,Concept,Deep Learning,DL|deep learning|深度神经网络,以多层神经网络自动学习层次化特征的范式,#3B6FD4,0.90,Agent 扩展
+C08,迁移学习,机器学习概念,Concept,Transfer Learning,transfer learning|领域自适应,把源域学到的知识迁移到目标域的范式,#3B6FD4,0.90,Agent 扩展
+C09,分类任务,机器学习概念,Concept,Classification,分类|classification|二分类|多分类,预测样本所属离散类别的任务,#3B6FD4,1.00,课程语料
+C10,回归任务,机器学习概念,Concept,Regression,回归|regression|数值预测,预测连续数值目标的任务,#3B6FD4,1.00,课程语料
+C11,聚类任务,机器学习概念,Concept,Clustering,聚类|clustering|分群,按相似度把无标签样本划分为若干簇的任务,#3B6FD4,1.00,课程语料
+C12,降维任务,机器学习概念,Concept,Dimensionality Reduction,降维|dimensionality reduction|特征压缩,在保留主要信息的前提下压缩特征维度的任务,#3B6FD4,1.00,课程语料
+C13,异常检测任务,机器学习概念,Concept,Anomaly Detection,异常检测|outlier detection|离群点检测,识别与大多数样本显著不同的异常样本的任务,#3B6FD4,0.90,Agent 扩展
+C14,排序任务,机器学习概念,Concept,Learning to Rank,排序|ltr|learning to rank|推荐排序,按相关性对候选集合进行排序的任务,#3B6FD4,0.90,Agent 扩展
+C15,序列预测任务,机器学习概念,Concept,Sequence Prediction,序列预测|时序预测|sequence prediction,对时序或文本序列做下一时刻预测的任务,#3B6FD4,0.90,Agent 扩展
+C16,过拟合,机器学习概念,Concept,Overfitting,overfit|过学习,模型在训练集表现好、在测试集泛化差的现象,#3B6FD4,0.90,Agent 扩展
+C17,欠拟合,机器学习概念,Concept,Underfitting,underfit|欠学习,模型容量不足，训练集与测试集表现都差的现象,#3B6FD4,0.90,Agent 扩展
+C18,正则化,机器学习概念,Concept,Regularization,regularization|L1正则|L2正则|惩罚项,在损失函数中加入惩罚项以抑制过拟合的方法,#3B6FD4,0.90,Agent 扩展
+C19,梯度下降,机器学习概念,Concept,Gradient Descent,GD|SGD|gradient descent|反向传播,沿负梯度方向迭代更新参数的优化方法,#3B6FD4,0.90,Agent 扩展
+C20,损失函数,机器学习概念,Concept,Loss Function,loss|目标函数|代价函数,衡量预测值与真实值差异、供优化器最小化的函数,#3B6FD4,0.90,Agent 扩展
+C21,核技巧,机器学习概念,Concept,Kernel Trick,kernel|高斯核|核函数,用核函数隐式完成高维映射、避免显式计算内积的技巧,#3B6FD4,0.90,Agent 扩展
+C22,特征工程,机器学习概念,Concept,Feature Engineering,feature engineering|特征选择|特征构造,构造、选择与变换特征以提升模型效果的过程,#3B6FD4,0.90,Agent 扩展
+C23,交叉验证,机器学习概念,Concept,Cross Validation,cross validation|K折|k-fold,轮换划分训练集与验证集以稳定评估模型的方法,#3B6FD4,0.90,Agent 扩展
+C24,偏差方差权衡,机器学习概念,Concept,Bias-Variance Tradeoff,bias variance|偏差-方差|泛化误差分解,模型误差在偏差与方差之间取得平衡的关系,#3B6FD4,0.90,Agent 扩展
+C25,信息熵,机器学习概念,Concept,Information Entropy,entropy|熵|信息增益,度量随机变量不确定性的指标，是决策树划分的依据,#3B6FD4,0.90,Agent 扩展
+C26,最大间隔,机器学习概念,Concept,Maximum Margin,margin|间隔最大化,通过最大化分类间隔提升泛化能力的原理,#3B6FD4,1.00,课程语料
+C27,Bagging,机器学习概念,Concept,Bagging,bootstrap aggregating|自助采样,自助采样并行训练多个基学习器再投票或平均的集成策略,#3B6FD4,0.90,Agent 扩展
+C28,Boosting,机器学习概念,Concept,Boosting,提升方法|boosting,串行训练弱学习器并逐步修正残差的集成策略,#3B6FD4,0.90,Agent 扩展
+C29,注意力机制,机器学习概念,Concept,Attention Mechanism,attention|自注意力|self-attention,按相关性动态分配权重的序列建模机制,#3B6FD4,0.90,Agent 扩展
+C30,表示学习,机器学习概念,Concept,Representation Learning,representation learning|特征表示,自动学习数据有效特征表示的一类方法总称,#3B6FD4,0.90,Agent 扩展
+C31,模型评估,机器学习概念,Concept,Model Evaluation,evaluation|评估方法,用评价指标与验证策略衡量模型性能的过程,#3B6FD4,0.90,Agent 扩展
+C32,超参数调优,机器学习概念,Concept,Hyperparameter Tuning,调参|网格搜索|贝叶斯优化,搜索最优超参数组合以提升模型性能的过程,#3B6FD4,0.90,Agent 扩展
+C33,数据不平衡,机器学习概念,Concept,Class Imbalance,样本不平衡|正负样本不均衡|imbalance,类别样本分布严重不均、导致模型偏向多数类的问题,#3B6FD4,0.90,Agent 扩展
+C34,维度灾难,机器学习概念,Concept,Curse of Dimensionality,curse of dimensionality|高维稀疏,高维空间中样本稀疏、距离失效导致模型性能下降的现象,#3B6FD4,0.90,Agent 扩展
+C35,序贯决策任务,机器学习概念,Concept,Sequential Decision Making,序贯决策|决策任务|control,在连续交互中依据长期回报选择动作的任务,#3B6FD4,0.90,Agent 扩展
+C36,机器学习,机器学习概念,Concept,Machine Learning,ML|machine learning|机器学习学科,研究如何让计算机从数据中自动学习规律并持续改进性能的学科,#3B6FD4,1.00,课程语料
+C37,线性假设,机器学习概念,Concept,Linear Assumption,线性关系假设|线性模型,假设目标值是输入特征的线性组合、误差独立同分布的建模前提,#3B6FD4,1.00,课程语料
+C38,Sigmoid函数,机器学习概念,Concept,Sigmoid Function,sigmoid|S型函数|对数几率函数|激活函数,把任意实数压缩到0~1区间的S形函数，用于把线性输出转成概率,#3B6FD4,1.00,课程语料
+A01,线性回归,算法,Algorithm,Linear Regression,linear regression|LR|最小二乘,用线性函数拟合连续目标值的最小二乘回归算法,#7C5CD6,1.00,课程语料
+A02,逻辑回归,算法,Algorithm,Logistic Regression,logistic regression|对数几率回归|逻辑斯蒂回归,用Sigmoid函数把线性输出映射为类别概率的分类算法,#7C5CD6,1.00,课程语料
+A03,岭回归,算法,Algorithm,Ridge Regression,ridge|L2正则线性回归,在线性回归损失中加入L2正则项的回归算法,#7C5CD6,1.00,课程语料
+A04,Lasso回归,算法,Algorithm,Lasso Regression,lasso|L1正则线性回归,加入L1正则项、可产生稀疏特征的回归算法,#7C5CD6,1.00,课程语料
+A05,决策树,算法,Algorithm,Decision Tree,decision tree|CART|ID3|C4.5,依据信息增益等准则递归划分特征空间构建树结构的算法,#7C5CD6,1.00,课程语料
+A06,随机森林,算法,Algorithm,Random Forest,random forest|RF,用Bagging组合多棵决策树并投票或平均的集成算法,#7C5CD6,1.00,课程语料
+A07,梯度提升树,算法,Algorithm,GBDT,GBDT|Gradient Boosting Decision Tree|GBM,串行拟合损失负梯度的树集成算法,#7C5CD6,0.90,Agent 扩展
+A08,XGBoost,算法,Algorithm,XGBoost,xgboost|XGB,引入正则项与二阶泰勒展开的高效梯度提升树实现,#7C5CD6,1.00,课程语料
+A09,LightGBM,算法,Algorithm,LightGBM,lightgbm|lgb|lgbm,采用直方图算法与叶子生长策略的轻量梯度提升树,#7C5CD6,1.00,课程语料
+A10,CatBoost,算法,Algorithm,CatBoost,catboost,原生支持类别特征、使用有序提升的梯度提升树,#7C5CD6,1.00,课程语料
+A11,支持向量机,算法,Algorithm,SVM,SVM|support vector machine|支持向量,最大化分类间隔、可借助核技巧处理非线性的分类算法,#7C5CD6,1.00,课程语料
+A12,K近邻,算法,Algorithm,KNN,KNN|k-nearest neighbors|最近邻,依据最近的K个样本投票或取平均的惰性学习算法,#7C5CD6,0.90,Agent 扩展
+A13,朴素贝叶斯,算法,Algorithm,Naive Bayes,naive bayes|NB|贝叶斯分类,基于特征条件独立假设与贝叶斯定理的分类算法,#7C5CD6,0.90,Agent 扩展
+A14,多层感知机,算法,Algorithm,MLP,MLP|多层感知机|全连接网络|感知机,由全连接层与非线性激活堆叠而成的基础神经网络,#7C5CD6,0.90,Agent 扩展
+A15,卷积神经网络,算法,Algorithm,CNN,CNN|卷积网络|convnet,用卷积核提取局部空间特征的前馈深度网络,#7C5CD6,0.90,Agent 扩展
+A16,循环神经网络,算法,Algorithm,RNN,RNN|循环网络|recurrent,通过循环单元共享参数处理变长序列的深度网络,#7C5CD6,0.90,Agent 扩展
+A17,LSTM,算法,Algorithm,LSTM,LSTM|长短期记忆网络|长短期记忆,用输入门、遗忘门、输出门缓解梯度消失的循环网络,#7C5CD6,0.90,Agent 扩展
+A18,GRU,算法,Algorithm,GRU,GRU|门控循环单元,把门控简化为更新门与重置门的循环网络,#7C5CD6,0.90,Agent 扩展
+A19,Transformer,算法,Algorithm,Transformer,transformer|自注意力网络,完全基于自注意力与前馈网络的序列建模架构,#7C5CD6,0.90,Agent 扩展
+A20,自编码器,算法,Algorithm,Autoencoder,autoencoder|AE|自编码网络,通过编码-解码重构输入来学习低维表示的无监督网络,#7C5CD6,0.90,Agent 扩展
+A21,变分自编码器,算法,Algorithm,VAE,VAE|variational autoencoder,在潜空间引入概率分布约束的生成式自编码器,#7C5CD6,0.90,Agent 扩展
+A22,生成对抗网络,算法,Algorithm,GAN,GAN|generative adversarial network|对抗生成网络,生成器与判别器对抗训练的生成式网络,#7C5CD6,0.90,Agent 扩展
+A23,K均值聚类,算法,Algorithm,K-Means,kmeans|K-means|K均值,迭代更新簇中心以最小化簇内平方误差的聚类算法,#7C5CD6,1.00,课程语料
+A24,DBSCAN,算法,Algorithm,DBSCAN,dbscan|密度聚类,基于密度可达性发现任意形状簇的聚类算法,#7C5CD6,0.90,Agent 扩展
+A25,层次聚类,算法,Algorithm,Hierarchical Clustering,hierarchical clustering|凝聚聚类|AGNES,通过不断合并或分裂簇形成聚类树的聚类算法,#7C5CD6,0.90,Agent 扩展
+A26,主成分分析,算法,Algorithm,PCA,PCA|主成分分析|principal component,用正交变换提取最大方差方向实现线性降维的算法,#7C5CD6,1.00,课程语料
+A27,t-SNE,算法,Algorithm,t-SNE,tsne|t-SNE|流形降维,用概率分布匹配实现非线性降维与可视化的算法,#7C5CD6,0.90,Agent 扩展
+A28,孤立森林,算法,Algorithm,Isolation Forest,isolation forest|iForest,用随机切分路径长度衡量样本异常程度的算法,#7C5CD6,0.90,Agent 扩展
+A29,单类SVM,算法,Algorithm,One-Class SVM,one-class svm|OCSVM|单类支持向量机,仅用正常样本学习决策边界以检测异常的算法,#7C5CD6,0.90,Agent 扩展
+A30,Q学习,算法,Algorithm,Q-Learning,q-learning|Qlearning|时序差分,通过时序差分迭代更新动作价值表的无模型强化学习算法,#7C5CD6,0.90,Agent 扩展
+A31,深度Q网络,算法,Algorithm,DQN,DQN|deep q network|深度Q学习,用神经网络近似Q值并引入经验回放的深度强化学习算法,#7C5CD6,0.90,Agent 扩展
+A32,策略梯度,算法,Algorithm,Policy Gradient,policy gradient|REINFORCE|PG,直接对策略参数做梯度上升以最大化期望回报的算法,#7C5CD6,0.90,Agent 扩展
+A33,协同过滤,算法,Algorithm,Collaborative Filtering,collaborative filtering|CF|协同过滤推荐,基于用户-物品交互相似度做推荐的算法,#7C5CD6,0.90,Agent 扩展
+A34,因子分解机,算法,Algorithm,Factorization Machine,FM|factorization machine|因子分解机,用隐向量内积建模特征二阶交互的算法,#7C5CD6,0.90,Agent 扩展
+M01,ResNet-50图像分类模型,模型,Model,ResNet-50,resnet50|ResNet|残差网络|resnet-50,用残差连接缓解深层网络退化问题的50层CNN分类模型,#E08A2E,0.90,Agent 扩展
+M02,VGG-16图像分类模型,模型,Model,VGG-16,vgg16|VGG|vgg-16,用连续3x3小卷积堆叠加深网络的16层CNN分类模型,#E08A2E,0.90,Agent 扩展
+M03,EfficientNet-B0图像分类模型,模型,Model,EfficientNet-B0,efficientnet|EfficientNet-B0,用复合缩放策略平衡深度、宽度与分辨率的轻量分类模型,#E08A2E,0.90,Agent 扩展
+M04,YOLOv5目标检测模型,模型,Model,YOLOv5,yolov5|YOLO|yolo v5,单阶段回归式、可实时推理的目标检测模型,#E08A2E,0.90,Agent 扩展
+M05,Faster R-CNN目标检测模型,模型,Model,Faster R-CNN,faster rcnn|Faster R-CNN|faster-rcnn,以RPN生成候选框、两阶段精修的目标检测模型,#E08A2E,0.90,Agent 扩展
+M06,U-Net图像分割模型,模型,Model,U-Net,unet|U-Net|图像分割,编码-解码加跳跃连接的像素级图像分割模型,#E08A2E,0.90,Agent 扩展
+M07,BERT-base中文预训练模型,模型,Model,BERT-base,bert|BERT|bert-base|中文BERT,基于双向Transformer编码器的中文预训练语言模型,#E08A2E,0.90,Agent 扩展
+M08,RoBERTa-wwm中文预训练模型,模型,Model,RoBERTa-wwm,roberta|RoBERTa|wwm,采用全词掩码与更大语料训练的BERT改进模型,#E08A2E,0.90,Agent 扩展
+M09,GPT-2文本生成模型,模型,Model,GPT-2,gpt2|GPT-2|GPT,基于Transformer解码器的自回归文本生成模型,#E08A2E,0.90,Agent 扩展
+M10,TextCNN文本分类模型,模型,Model,TextCNN,textcnn|TextCNN,用多尺寸卷积核提取n-gram特征的文本分类模型,#E08A2E,0.90,Agent 扩展
+M11,BiLSTM-CRF命名实体识别模型,模型,Model,BiLSTM-CRF,bilstm-crf|BiLSTM|命名实体识别|NER,双向LSTM编码加CRF标签约束的序列标注模型,#E08A2E,0.90,Agent 扩展
+M12,Word2Vec词向量模型,模型,Model,Word2Vec,word2vec|w2v|词向量,用CBOW或Skip-gram从上下文学习词向量的浅层模型,#E08A2E,0.90,Agent 扩展
+M13,GloVe词向量模型,模型,Model,GloVe,glove|全局词向量,基于全局共现矩阵分解学习词向量的模型,#E08A2E,0.90,Agent 扩展
+M14,FM点击率预估模型,模型,Model,FM-CTR,fm|FM|点击率预估,用隐向量交叉建模二阶特征的点击率预估模型,#E08A2E,0.90,Agent 扩展
+M15,DeepFM点击率预估模型,模型,Model,DeepFM,deepfm|DeepFM,FM与深度网络并联、同时建模低阶与高阶特征的点击率模型,#E08A2E,0.90,Agent 扩展
+M16,DIN推荐排序模型,模型,Model,DIN,din|DIN|深度兴趣网络,用注意力机制建模用户历史行为兴趣的推荐排序模型,#E08A2E,0.90,Agent 扩展
+M17,矩阵分解推荐模型,模型,Model,MF,矩阵分解|MF|matrix factorization,把用户-物品评分矩阵分解为隐向量的推荐模型,#E08A2E,0.90,Agent 扩展
+M18,XGBoost风控评分模型,模型,Model,XGBoost-Risk,风控模型|信用评分|XGBoost评分卡,用XGBoost输出信贷样本违约概率的风控评分模型,#E08A2E,0.90,Agent 扩展
+M19,LightGBM销量预测模型,模型,Model,LightGBM-Sales,销量预测|销量模型,用LightGBM回归门店与促销特征预测销量的模型,#E08A2E,0.90,Agent 扩展
+M20,随机森林房价预测模型,模型,Model,RF-HousePrice,房价预测|房价模型,用随机森林回归房屋属性预测成交价格的模型,#E08A2E,0.90,Agent 扩展
+M21,逻辑回归信用违约模型,模型,Model,LR-Credit,违约预测|评分卡模型|信用违约,用逻辑回归输出违约概率的可解释信用评分模型,#E08A2E,0.90,Agent 扩展
+M22,自编码器异常检测模型,模型,Model,AE-Anomaly,重构误差异常检测,以重构误差作为异常分数的无监督异常检测模型,#E08A2E,0.90,Agent 扩展
+M23,LSTM股票价格预测模型,模型,Model,LSTM-Stock,股价预测|股票预测,用LSTM建模历史行情序列预测下一交易日价格的模型,#E08A2E,0.90,Agent 扩展
+P01,准确率,评价指标,Metric,Accuracy,accuracy|ACC|正确率,预测正确的样本数占总样本数的比例,#2E9E6B,1.00,课程语料
+P02,精确率,评价指标,Metric,Precision,precision|查准率,预测为正的样本中真正为正的比例,#2E9E6B,1.00,课程语料
+P03,召回率,评价指标,Metric,Recall,recall|查全率|灵敏度,真正为正的样本中被成功预测出来的比例,#2E9E6B,1.00,课程语料
+P04,F1分数,评价指标,Metric,F1-Score,f1|F1|f1-score|F值,精确率与召回率的调和平均，兼顾二者平衡,#2E9E6B,1.00,课程语料
+P05,ROC-AUC,评价指标,Metric,ROC-AUC,auc|AUC|roc_auc,ROC曲线下面积，衡量模型对正负样本的排序区分能力,#2E9E6B,0.90,Agent 扩展
+P06,PR-AUC,评价指标,Metric,PR-AUC,prauc|PR曲线|平均精确率AP,精确率-召回率曲线下面积，适合类别不平衡场景,#2E9E6B,0.90,Agent 扩展
+P07,混淆矩阵,评价指标,Metric,Confusion Matrix,confusion matrix|TP FP FN TN,按TP/FP/FN/TN统计分类结果的表格化评估工具,#2E9E6B,0.90,Agent 扩展
+P08,均方误差,评价指标,Metric,MSE,mse|MSE|平方损失,预测值与真实值之差的平方的均值,#2E9E6B,1.00,课程语料
+P09,均方根误差,评价指标,Metric,RMSE,rmse|RMSE|根均方误差,均方误差的平方根，量纲与目标变量一致,#2E9E6B,0.90,Agent 扩展
+P10,平均绝对误差,评价指标,Metric,MAE,mae|MAE|绝对误差,预测误差绝对值的均值，对异常值更稳健,#2E9E6B,0.90,Agent 扩展
+P11,决定系数,评价指标,Metric,R2,r2|R2|R²|拟合优度,回归模型所能解释的目标方差比例,#2E9E6B,0.90,Agent 扩展
+P12,轮廓系数,评价指标,Metric,Silhouette Coefficient,silhouette|轮廓系数|SIL,同时衡量簇内紧密度与簇间分离度的聚类指标,#2E9E6B,1.00,课程语料
+P13,调整兰德指数,评价指标,Metric,Adjusted Rand Index,ARI|rand index|兰德指数,校正随机一致性后的聚类划分一致程度指标,#2E9E6B,0.90,Agent 扩展
+P14,困惑度,评价指标,Metric,Perplexity,perplexity|PPL|困惑度,语言模型对序列预测不确定性的度量，越低越好,#2E9E6B,0.90,Agent 扩展
+P15,BLEU,评价指标,Metric,BLEU,bleu|BLEU-4|双语评估替补,基于n-gram重合度衡量生成文本质量的指标,#2E9E6B,0.90,Agent 扩展
+P16,平均精度均值,评价指标,Metric,mAP,map|mAP|平均精度,各类别平均精度AP的均值，是目标检测的核心指标,#2E9E6B,0.90,Agent 扩展
+P17,交并比,评价指标,Metric,IoU,iou|IoU|Jaccard,预测框与真实框重叠面积与并集面积之比,#2E9E6B,0.90,Agent 扩展
+P18,NDCG,评价指标,Metric,NDCG,ndcg|NDCG@K|归一化折损累计增益,考虑位置折扣的排序质量指标，常用于推荐与搜索,#2E9E6B,0.90,Agent 扩展
