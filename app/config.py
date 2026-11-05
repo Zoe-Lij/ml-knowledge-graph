@@ -53,6 +53,27 @@ class Settings:
     #            official / py2neo = 强制指定（本机验证云端驱动路径时用）
     NEO4J_DRIVER: str = os.getenv("NEO4J_DRIVER", "").strip().lower()
 
+    # ---------- PostgreSQL 连接（线上主数据源）----------
+    # 为什么加这一层：Vercel 跑不了常驻数据库进程，本机 Neo4j 也带不到云上，
+    # 所以线上用托管 PostgreSQL（Neon / Supabase / 云厂商 RDS 都行）。
+    # 连接串示例（Neon）：
+    #   postgresql://user:pass@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+    # 变量名兼容几种常见写法：Vercel Postgres 会注入 POSTGRES_URL，
+    # Neon 集成可能给 DATABASE_URL / POSTGRES_PRISMA_URL，都认。
+    DATABASE_URL: str = (
+        os.getenv("DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("NEON_DATABASE_URL")
+        or os.getenv("POSTGRES_PRISMA_URL")
+        or ""
+    ).strip()
+
+    # 连接超时：Serverless 冷启动总时长有限，连不上要快速失败而不是干等
+    PG_CONNECT_TIMEOUT: int = int(os.getenv("PG_CONNECT_TIMEOUT", "5" if not os.getenv("VERCEL") else "4"))
+
+    # 是否把实际执行的 SQL 放进接口响应（前端"证据区"展示用，答辩很好用）
+    SHOW_SQL: bool = _get_bool("SHOW_SQL", True)
+
     # ---------- 运行环境 ----------
     # Vercel 会注入 VERCEL=1：Serverless 下连接超时要压短（函数总时长有限）
     IS_SERVERLESS: bool = bool(os.getenv("VERCEL"))
@@ -72,6 +93,35 @@ class Settings:
         未配置 → 直接判定为"使用服务端 kg.json 数据集"，接口照常工作。
         """
         return bool(os.getenv("NEO4J_URI") or os.getenv("NEO4J_PASSWORD"))
+
+    @property
+    def database_configured(self) -> bool:
+        """是否配置了 PostgreSQL 连接串（线上主数据源）。"""
+        return bool(self.DATABASE_URL)
+
+    @property
+    def database_url(self) -> str:
+        """
+        规范化后的连接串：
+          · 老的 postgres:// 前缀统一成 postgresql://（psycopg 只认后者）；
+          · 去掉首尾空白（从 Vercel 界面粘贴时经常带上换行）。
+        """
+        url = (self.DATABASE_URL or "").strip()
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        return url
+
+    @property
+    def database_host(self) -> str:
+        """只取主机名，给 /api/health 展示用（不泄露账号密码）。"""
+        url = self.database_url
+        if not url:
+            return ""
+        try:
+            from urllib.parse import urlparse
+            return urlparse(url).hostname or ""
+        except Exception:
+            return ""
 
     # ---------- 数据源模式 ----------
     KG_MODE: str = os.getenv("KG_MODE", "auto").strip().lower()

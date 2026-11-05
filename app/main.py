@@ -36,7 +36,7 @@ from .explain import explain, fragment
 from .kgdata import RELATION_TYPES, TYPE_COLORS, kb
 from .nl2cypher import EXAMPLES, build_cypher, build_plan, link_entities
 from .security import SecurityError, guard
-from .store import neo4j_store, pick_store
+from .store import neo4j_store, pick_store, postgres_store
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -68,8 +68,9 @@ class QueryResponse(BaseModel):
     question: str
     intent: str                     # 查询意图（detail/neighbors/filter/...）
     rule: str                       # 命中的解析规则，便于答辩时解释"为什么这么翻译"
-    cypher: str                     # 实际执行的 Cypher
-    params: dict                    # Cypher 参数
+    cypher: str                     # 翻译层生成的 Cypher（逻辑形式；PostgreSQL 部署下作对照）
+    params: dict                    # 语句参数
+    sql: str | None = None          # 实际下发给 PostgreSQL 的 SQL（走图库时为 None）
     answer: str                     # 自然语言解释
     rows: list                      # 原始查询结果
     direct: list = []               # 仅 compare：两实体之间的直接关系
@@ -77,8 +78,8 @@ class QueryResponse(BaseModel):
     nodes: list = []                # 命中子图节点（前端高亮用）
     links: list = []                # 命中子图边
     matched_entities: list = []     # 识别到的实体
-    source: str = "neo4j"           # 实际数据源：neo4j / local
-    degraded: bool = False          # 是否降级到本地图
+    source: str = "neo4j"           # 实际数据源：neo4j / postgres / local
+    degraded: bool = False          # 是否降级到本地内存图
     relaxed: bool = False            # 是否因原类型无结果而放开了类型限制
     warning: str | None = None
     elapsed_ms: float = 0.0
@@ -180,29 +181,36 @@ def _do_query(question: str, limit: int) -> QueryResponse:
                 cypher, params = build_cypher(plan)
                 safe_enforce(cypher, params)
     except Exception as exc:
-        if settings.KG_MODE == "neo4j":
+        if settings.KG_MODE in ("neo4j", "postgres", "postgresql", "pg"):
             raise HTTPException(
                 status_code=503,
-                detail=f"Neo4j 查询失败：{exc}。请确认数据库已启动、密码正确（见 docs/02_neo4j_setup.md）。",
-            )
+                detail=(f"数据库查询失败：{exc}。可检查连接配置"
+                        f"（见 docs/02_neo4j_setup.md、docs/06_vercel_deploy.md）"),
+            ) from exc
         # auto/local 模式下本地图理论上不会失败，兜底给出可读信息
-        raise HTTPException(status_code=500, detail=f"查询执行失败：{exc}")
+        raise HTTPException(status_code=500, detail=f"查询执行失败：{exc}") from exc
 
     # Step 5：结果 → 中文解释 + 高亮子图
     answer = explain(plan, result, source)
     frag = fragment(plan, result)
 
+    sql = result.get("sql")
     warning = None
     if degraded and settings.KG_MODE == "auto":
-        warning = ("Neo4j 未连接，当前用本地 kg.json 计算（查询逻辑与数据库一致）。"
-                   "启动 Neo4j 后重新提问即可走真实图查询。")
+        if settings.database_configured:
+            warning = ("数据库未连接，当前用服务端 data/kg.json 计算（查询逻辑与数据库一致）。"
+                       f"连接恢复后重新提问即可走真实数据库：{postgres_store.last_error}")
+        else:
+            warning = ("未配置云端数据库，当前用服务端 data/kg.json 计算（查询逻辑与数据库一致）。"
+                       "配置 DATABASE_URL 后重新提问即可走真实数据库。")
 
     return QueryResponse(
         question=question,
         intent=plan.kind,
         rule=plan.rule,
         cypher=cypher,
-        params=params,
+        params=(result.get("params") if sql else params) or {},
+        sql=sql,
         answer=answer,
         rows=result.get("rows", []),
         direct=result.get("direct", []),
@@ -240,8 +248,23 @@ def query_get(
 # ---------------------------------------------------------------------------
 @app.get("/api/health", summary="健康检查：数据库连接与数据规模")
 def health():
-    """答辩现场先跑这个，一眼看出数据库有没有起来、数据对不对。"""
-    neo4j_ok = neo4j_store.connect(force=True)
+    """
+    答辩现场先跑这个，一眼看出数据库有没有起来、数据对不对。
+
+    store 字段就是"这份数据此刻由谁在回答"：
+        neo4j    —— Cypher 打到本机/云端图数据库
+        postgres —— SQL 打到托管 PostgreSQL（线上默认形态）
+        kg.json  —— 数据库都连不上，用服务端随包分发的数据集兜底
+    """
+    neo4j_ok = neo4j_store.connect(force=True) if settings.neo4j_configured else False
+    pg_ok = postgres_store.connect(force=True) if settings.database_configured else False
+    if neo4j_ok:
+        store_name = "neo4j"
+    elif pg_ok:
+        store_name = "postgres"
+    else:
+        store_name = "kg.json"
+
     dataset = kb.counts()
     info = {
         "status": "ok",
@@ -249,13 +272,22 @@ def health():
         "version": settings.APP_VERSION,
         "kg_mode": settings.KG_MODE,
         "uri": settings.NEO4J_URI if settings.neo4j_configured else None,
-        # store 说明这一份数据是谁在执行：neo4j = Cypher 打到图库；kg.json = 服务端数据集
-        "store": "neo4j" if neo4j_ok else "kg.json",
-        "dataset_source": "data/kg.json（服务端读取，随部署一起分发）",
+        "store": store_name,
+        # 内存词典是从哪儿加载的：postgres = 运行期数据全在数据库；kg.json = 兜底
+        "dataset_loaded_from": kb.source,
+        "dataset_source": ("PostgreSQL 托管库（kg_entity / kg_relation 两张表）" if kb.source == "postgres"
+                           else "data/kg.json（服务端读取，随部署一起分发）"),
         "neo4j": {
             "connected": neo4j_ok,
             "configured": settings.neo4j_configured,
             "error": None if neo4j_ok else neo4j_store.last_error,
+        },
+        "postgres": {
+            "configured": settings.database_configured,
+            "connected": pg_ok,
+            "host": settings.database_host,
+            "driver": "psycopg3",
+            "error": None if pg_ok else (postgres_store.last_error or "未配置 DATABASE_URL"),
         },
         "local_dataset": dataset,
     }
@@ -268,6 +300,15 @@ def health():
                 info["warning"] = "数据库数量与本地数据集不一致，建议重跑 python scripts/import_neo4j.py --reset"
         except Exception as exc:
             info["neo4j"]["error"] = str(exc)
+    if pg_ok:
+        try:
+            db_counts = postgres_store.counts()
+            info["postgres"].update({"entities": db_counts["entities"],
+                                     "relationships": db_counts["relations"]})
+            if (db_counts["entities"], db_counts["relations"]) != (dataset["entities"], dataset["relations"]):
+                info["warning"] = "数据库数量与内存词典不一致，建议重跑 python scripts/init_postgres.py --verify"
+        except Exception as exc:
+            info["postgres"]["error"] = str(exc)
     return info
 
 

@@ -49,3 +49,9 @@ python-dotenv==1.2.4
 #
 # 需要完整快照时：pip freeze > requirements.lock.txt
 # =============================================================================
+
+# ---------- 4. 线上托管数据库（PostgreSQL）----------
+# 为什么加：Vercel Serverless 跑不了常驻数据库进程，Neo4j Aura 免费档在国内注册受限，
+# 线上改为托管 PostgreSQL（Neon / Supabase / 云厂商 RDS 通用），数据持久化在云上。
+# psycopg3 官方驱动，[binary] 表示带预编译二进制，线上不用装 libpq 开发包。
+psycopg[binary]>=3.1,<4

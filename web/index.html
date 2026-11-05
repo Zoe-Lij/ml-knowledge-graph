@@ -389,6 +389,13 @@
     overflow:auto;max-height:150px;white-space:pre;
   }
   .small{margin-top:8px;padding:4px 10px;font-size:11px;flex:0 0 auto;display:inline-block;}
+  /* PostgreSQL 部署时多出来的一层「等价 Cypher」折叠区 */
+  details.ev-more{margin-top:9px;}
+  details.ev-more summary{font-size:11px;color:#93a0b5;cursor:pointer;list-style:none;}
+  details.ev-more summary:hover{color:var(--accent);}
+  details.ev-more summary:before{content:"▸ ";color:#a9b4c7;}
+  details.ev-more[open] summary:before{content:"▾ ";}
+  details.ev-more pre.cypher{margin-top:6px;}
 
   /* 窄屏适配（笔记本投屏常见 1280×720） */
   @media (max-width:1100px){
@@ -1123,7 +1130,10 @@ function renderAnswer(d) {
   // 元信息：耗时 / 数据源 / 是否降级 / 是否放宽类型
   const meta = [];
   meta.push(`${Math.round(d.elapsed_ms ?? 0)} ms`);
-  meta.push(d.source === 'neo4j' ? '数据源 Neo4j' : '数据源 本地图（降级）');
+  meta.push({
+    neo4j: '数据源 Neo4j',
+    postgres: '数据源 PostgreSQL',
+  }[d.source] || '数据源 本地图（降级）');
   if (d.relaxed) meta.push('已放宽类型限制');
   ansMeta.textContent = meta.join(' · ');
   if (d.warning) ansMeta.title = d.warning;
@@ -1142,22 +1152,27 @@ function renderAnswer(d) {
   ansSub.innerHTML = sub;
 
   // 证据区
+  // 证据区：PostgreSQL 部署下主语句是 SQL，Cypher 作为"等价逻辑形式"折叠对照
+  const isPg = !!d.sql;
+  const stmt = isPg ? d.sql : (d.cypher || '');
   evidence.hidden = false;
   evidenceBody.innerHTML = `
     <div class="ev-row"><span class="ev-k">命中规则</span><span class="ev-v">${esc(d.rule || '-')}</span></div>
     <div class="ev-row"><span class="ev-k">识别实体</span><span class="ev-v">${names.length ? names.map(esc).join('、') : '未识别到已知实体'}</span></div>
-    <div class="ev-label">Cypher（实际下发给 Neo4j 的语句）</div>
-    <pre class="cypher">${esc(d.cypher || '')}</pre>
+    <div class="ev-label">${isPg ? 'SQL（实际下发给 PostgreSQL 的语句）' : 'Cypher（实际下发给 Neo4j 的语句）'}</div>
+    <pre class="cypher">${esc(stmt)}</pre>
     <div class="ev-label">参数</div>
     <pre class="cypher">${esc(JSON.stringify(d.params || {}, null, 2))}</pre>
-    <button class="ghost small" id="btn-copy">复制 Cypher</button>
+    ${isPg ? `<details class="ev-more"><summary>查看等价的 Cypher（翻译层产物，仅作对照）</summary><pre class="cypher">${esc(d.cypher || '')}</pre></details>` : ''}
+    <button class="ghost small" id="btn-copy">${isPg ? '复制 SQL' : '复制 Cypher'}</button>
   `;
   const copyBtn = document.getElementById('btn-copy');
   if (copyBtn) {
     copyBtn.addEventListener('click', () => {
-      const text = (state.lastQuery && state.lastQuery.cypher) || '';
+      const lq = state.lastQuery || {};
+      const text = lq.sql || lq.cypher || '';
       navigator.clipboard?.writeText(text).then(
-        () => { copyBtn.textContent = '已复制'; setTimeout(() => (copyBtn.textContent = '复制 Cypher'), 1500); },
+        () => { copyBtn.textContent = '已复制'; setTimeout(() => (copyBtn.textContent = isPg ? '复制 SQL' : '复制 Cypher'), 1500); },
         () => { copyBtn.textContent = '复制失败'; }
       );
     });
@@ -1306,10 +1321,19 @@ async function loadGraph() {
     const badge = document.getElementById('badge-source');
     const source = (data.meta && data.meta.source) || 'neo4j';
     const degraded = !!(data.meta && data.meta.degraded);
+    const nEnt = (data.meta && data.meta.entities) || data.nodes.length;
+    const nRel = (data.meta && data.meta.relations) || data.links.length;
     badge.className = 'badge ' + (degraded ? 'warn' : 'ok');
-    // degraded 不代表"坏了"：线上（Vercel）就是服务端只读数据集模式，措辞保持中性、如实
-    badge.innerHTML = `<i></i><span>${degraded ? '只读数据集模式' : 'Neo4j 已连接'}</span>`;
-    badge.title = `数据源：${source}（${degraded ? '服务端 data/kg.json，113 实体 / 258 关系' : 'Neo4j 图数据库'}）`;
+    // 三种数据源如实显示：neo4j（本机图库）/ postgres（线上托管库）/ 只读数据集（兜底）
+    const SOURCE_LABEL = {
+      neo4j: 'Neo4j 已连接',
+      postgres: 'PostgreSQL 已连接',
+      local: '只读数据集模式',
+    };
+    badge.innerHTML = `<i></i><span>${SOURCE_LABEL[source] || (degraded ? '只读数据集模式' : '已连接')}</span>`;
+    badge.title = degraded
+      ? `数据源：服务端 data/kg.json（${nEnt} 实体 / ${nRel} 关系），数据库未连接时的兜底`
+      : `数据源：${source === 'postgres' ? 'PostgreSQL 托管库（kg_entity / kg_relation）' : 'Neo4j 图数据库'}，${nEnt} 实体 / ${nRel} 关系`;
 
     loadingEl.classList.add('hide');
   } catch (err) {

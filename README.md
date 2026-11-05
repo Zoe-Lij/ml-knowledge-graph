@@ -220,35 +220,66 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 
 期望：全部 PASS。数据体检会打印实体/关系分布、孤立节点、弱连通分量数。
 
-### 4.9 线上部署（Vercel，前后端一体上线 · 零配置）
+### 4.9 线上部署（Vercel + Neon PostgreSQL，前后端一体上线）
 
 **线上地址**：<https://ml-knowledge-graph-lyart.vercel.app>
 
 线上不是"只传前端"：前端页面由 FastAPI 的 `StaticFiles` 托管，后端跑在 Vercel Serverless
-（入口 `index.py`，业务代码与本地完全一致），数据是随包分发的 `data/kg.json`（113 实体 / 258 关系），
-由**服务端**加载——刷新、换电脑、清缓存都不会丢，也不依赖任何浏览器本地存储。
+（入口 `index.py`，业务代码与本地一致），**数据存在云端 PostgreSQL 里**（Neon 免费档），
+既不在函数包里，也不在浏览器里——刷新、换电脑、重新部署读的都是同一份数据。
 
-> 配置要点：`vercel.json` 里**不要写自定义 `rewrites`**。Vercel 检测到 `fastapi` 依赖后
-> 会按原始路径自动路由全部请求，再叠加兜底重写会让所有路径变成入口文件名，导致全站 404
+```
+浏览器  →  Vercel Serverless（FastAPI / app/main.py）  →  Neon PostgreSQL
+                                   │
+                                   └─ 数据库连不上时兜底：随包 data/kg.json
+                                      （页面不白屏；/api/health 会如实报告 store=kg.json）
+```
+
+数据表（`scripts/init_postgres.py` 建表并灌入，可重复执行）：
+
+| 表 | 作用 | 关键列 |
+| --- | --- | --- |
+| `kg_entity` | 节点 | `name`（唯一）、`id`（C01/A06…）、`type`、`en_name`、`aliases`、`description`、`confidence` |
+| `kg_relation` | 边 | `source_name`、`target_name`、`rel_type`、`description`、`confidence`、`evidence` |
+| `kg_meta` | 数据集元信息 | `key` / `value`(jsonb)（版本号、置信度模型，前端图例用） |
+
+#### 首次部署（5 步）
+
+```bash
+# 1) 建库：https://neon.tech 用 GitHub 账号登录 → New Project → 区域选 Singapore
+#    在 Dashboard → Connect 复制 "Connection string"（Pooled connection，带 ?sslmode=require）
+
+# 2) 初始化数据（建表 + 灌 113 实体 / 258 关系 + 跑 11 条问句自检）
+DATABASE_URL='postgresql://...-pooler...neon.tech/neondb?sslmode=require' \
+  python scripts/init_postgres.py --verify
+
+# 3) 推代码到 GitHub（仓库已含 web/ data/ app/ requirements.txt）
+
+# 4) Vercel → Add New Project → 选仓库 → Framework 选 Other
+#    → Environment Variables 加一条 DATABASE_URL（Production + Preview 都勾）→ Deploy
+
+# 5) 验收（把域名换成自己的）
+curl -s $BASE/api/health | python3 -m json.tool     # store=postgres，postgres.entities=113
+curl -s $BASE/api/graph  | head -c 200              # 113 nodes / 258 links
+```
+
+> 配置要点 1：`vercel.json` 里**不要写自定义 `rewrites`**。Vercel 检测到 `fastapi` 依赖后
+> 会按原始路径自动路由全部请求，再叠加兜底重写会把所有路径变成入口文件名，导致全站 404
 > （本项目首轮部署即踩此坑，排障记录见 `docs/06_vercel_deploy.md` 第 7.1 节）。
+>
+> 配置要点 2：优先用 **Pooled** 连接串（主机名带 `-pooler`）。Serverless 每次冷启动都可能
+> 新建连接，直连串容易把免费档的连接数打满；`app/pg.py` 里已设 `prepare_threshold=None`，
+> 关闭服务端预处理语句以适配 Neon 的 PgBouncer。
 
-```bash
-# 1) 推代码（GitHub Desktop：Add Local Repository → Publish，建议 Private）
-# 2) Vercel → Add New Project → 选该仓库 → Framework 选 Other → 不填任何环境变量 → Deploy
-```
+> 为什么线上不用云端 Neo4j：Vercel 的 Serverless 函数跑不了常驻数据库进程，Neo4j Aura
+> 免费档在中国区注册被拦（换组织/换号/换区域/VPN 都试过）。PostgreSQL 免费额度足够，
+> 而本项目要用到的图能力（一跳邻居、两跳对比、六跳内最短路径）在关系库里等价于
+> "两张表 + 递归 CTE"，语义与 Cypher 一致，实现见 `app/pg.py`，两条路径共用同一套 QueryPlan。
 
-部署后自检（把域名换成自己的）：
+> 本机仍可用 Neo4j 演示（`KG_MODE=auto` 时优先图库）：加 `NEO4J_URI/USER/PASSWORD/DATABASE`
+> 四个环境变量即可，`/api/health` 的 `store` 会变成 `neo4j`，**代码无需改动**。
 
-```bash
-curl -s $BASE/api/health | python3 -m json.tool      # 113 / 258，store=kg.json
-curl -s $BASE/api/graph | head -c 200                # 113 nodes / 258 links
-```
-
-> 可选升级：拿到公网 Neo4j（Aura / 云服务器）后，在 Vercel 加 5 个环境变量
-> （`NEO4J_URI/USER/PASSWORD/DATABASE`、`KG_MODE=auto`）并 Redeploy，即可切到真实图库，
-> `/api/health` 的 `store` 会变成 `neo4j`，**代码无需改动**。
-
-详见 `docs/06_vercel_deploy.md`（含 8 项验收清单、常见报错对照、AI 用量声明）。
+详见 `docs/06_vercel_deploy.md`（含验收清单、常见报错对照、AI 用量声明）。
 
 > 两个驱动的分工：本机 Neo4j 4.4 用 `py2neo`（`bolt://`），云端 5.x 用官方驱动（`neo4j+s://`），
 > `store.py` 按 URI 自动切换——因为 py2neo 2021.2.4 在 5.x 上握手就失败。
@@ -264,7 +295,8 @@ curl -s $BASE/api/graph | head -c 200                # 113 nodes / 258 links
 │   ├── config.py               配置中心：读 .env，KG_MODE / 端口 / 查询上限
 │   ├── kgdata.py               加载 data/kg.json：实体词典、邻接表、度数、边置信度索引
 │   ├── nl2cypher.py            ★核心：实体识别 + 意图分类 + 8 个 Cypher 模板
-│   ├── store.py                双执行后端：Neo4jStore(py2neo) / LocalStore(内存图)
+│   ├── store.py                三执行后端：Neo4jStore / PostgresStore / LocalStore（同一套 QueryPlan）
+│   ├── pg.py                   ★PostgreSQL 数据层：QueryPlan→参数化 SQL，多跳路径用递归 CTE
 │   ├── explain.py              查询结果 → 中文解释 + 命中子图（前端高亮用）
 │   ├── security.py             ★Cypher 安全护栏：输入筛查 / 只读校验 / 白名单 / 审计
 │   └── main.py                 路由（/api/graph、/api/query 等）、参数校验、静态托管
@@ -278,7 +310,7 @@ curl -s $BASE/api/graph | head -c 200                # 113 nodes / 258 links
 │   ├── entities.csv            113 个实体 + 类型/别名/描述/置信度（辅助表，建库与实体识别用）
 │   ├── relations.csv           258 条关系 + 头尾类型/symmetric/置信度/依据（辅助表）
 │   ├── low_confidence_relations.csv  77 条待人工复核的关系清单（置信度 < 0.80）
-│   └── kg.json                 聚合数据，后端与前端兜底直接读取
+│   └── kg.json                 聚合数据：PostgreSQL 的初始化种子 + 数据库不通时的兜底
 │
 ├── cypher/                     Cypher 脚本（Neo4j Browser 可直接执行）
 │   ├── 00_reset.cypher         清空数据库（可重复执行）
@@ -289,6 +321,7 @@ curl -s $BASE/api/graph | head -c 200                # 113 nodes / 258 links
 │
 ├── scripts/                    运维与自测脚本
 │   ├── import_neo4j.py         ★py2neo 一键入库（--dry-run / --reset / --batch）
+│   ├── init_postgres.py        ★PostgreSQL 建表 + 灌数据 + 11 条问句全链路自检（--reset / --verify）
 │   ├── check_connection.py     连接自检：连通性 + 数量 + 分布 + 抽样路径
 │   ├── smoke_test_api.py       接口冒烟测试（标准库 urllib，无额外依赖）
 │   └── security_selftest.py    注入防护自测（12 恶意问句 + 19 语句 + 13 HTTP）
@@ -347,9 +380,9 @@ curl -s $BASE/api/graph | head -c 200                # 113 nodes / 258 links
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/graph` | 全图节点与关系（D3 渲染用），含 `confidence` / `meta` |
-| POST | `/api/query` | 自然语言提问，返回 `answer` / `rows` / `cypher` / `params` / `intent` / 命中子图 |
+| POST | `/api/query` | 自然语言提问，返回 `answer` / `rows` / `intent` / 命中子图；`cypher` 是翻译层产物，`sql` 是 PostgreSQL 部署下实际执行的语句 |
 | GET | `/api/query?q=...` | 同上，GET 形式（浏览器地址栏可直接试） |
-| GET | `/api/health` | 健康检查：数据源、Neo4j 连接状态、数量 |
+| GET | `/api/health` | 健康检查：`store`（neo4j / postgres / kg.json）、数据库连接状态、库内节点与关系数 |
 | GET | `/api/examples` | 示例问句（前端快捷按钮） |
 | GET | `/api/entities?keyword=` | 实体词典检索（搜索联想） |
 | GET | `/api/security/report` | 安全护栏拦截统计（防注入演示） |

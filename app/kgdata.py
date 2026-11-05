@@ -23,7 +23,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from .config import DATA_DIR
+from .config import DATA_DIR, settings
 
 # 关系类型白名单（与 Schema 严格一致，任何地方出现第 6 种都是 bug）
 RELATION_TYPES = ["属于", "衍生自", "基于", "可对比", "应用于"]
@@ -48,11 +48,19 @@ TYPE_COLORS = {
 class KnowledgeBase:
     """知识图谱数据集（内存单例）。"""
 
-    def __init__(self, path: Path | None = None):
-        path = path or (DATA_DIR / "kg.json")
-        with open(path, encoding="utf-8") as f:
-            raw = json.load(f)
+    def __init__(self, path: Path | None = None, raw: dict | None = None, source: str = "kg.json"):
+        """
+        两种构造方式：
+          KnowledgeBase()                    —— 读 data/kg.json（本地开发 / 数据库不通时的兜底）
+          KnowledgeBase(raw=fetch_dataset()) —— 直接用数据库读回来的数据（线上主路径）
+        """
+        if raw is None:
+            path = path or (DATA_DIR / "kg.json")
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
 
+        # 这份内存副本是从哪儿来的：postgres = 运行期数据全在数据库里；kg.json = 兜底种子
+        self.source: str = source
         self.meta: dict = raw.get("meta", {})
 
         # 实体按 id 建索引，同时保留列表顺序（导出时按类型分组过，顺序稳定）
@@ -173,5 +181,28 @@ class KnowledgeBase:
         return hits[:limit]
 
 
-# 模块级单例：整个进程只读一次盘
-kb = KnowledgeBase()
+def _bootstrap() -> KnowledgeBase:
+    """
+    启动时决定这份词典从哪儿来（顺序很重要）：
+
+      1. 配了 DATABASE_URL 且能连通 → 从 PostgreSQL 读整份数据集（线上主路径）。
+         这样运行期的数据只有数据库一个来源，kg.json 不参与查询；
+      2. 否则 → 读 data/kg.json（本地开发 / 数据库暂时不通时的兜底）。
+
+    注意：这一步在 import 时执行一次。Serverless 冷启动多花 100~300ms 连接数据库，
+    换来的是"词典与数据库永远一致"——改了库里的实体，重新提问就能识别，不用重新部署。
+    """
+    if settings.database_configured:
+        try:
+            from .pg import fetch_dataset
+
+            raw = fetch_dataset()
+            if raw.get("entities"):
+                return KnowledgeBase(raw=raw, source="postgres")
+        except Exception as exc:
+            print(f"[kgdata] PostgreSQL 加载失败，回退 data/kg.json：{type(exc).__name__}: {exc}")
+    return KnowledgeBase(source="kg.json")
+
+
+# 模块级单例：整个进程只加载一次
+kb = _bootstrap()

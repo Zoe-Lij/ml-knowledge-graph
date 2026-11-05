@@ -479,18 +479,32 @@ class LocalStore:
 neo4j_store = Neo4jStore()
 local_store = LocalStore()
 
+from .pg import PostgresStore    # noqa: E402  （放在类定义之后，避免与 kgdata 的导入顺序纠缠）
+
+postgres_store = PostgresStore()
+
 
 def pick_store() -> tuple[object, str, bool]:
     """
     按 KG_MODE 选择后端。
     返回 (store, 实际使用的后端名, 是否降级)。
+
+    三种真实后端各有分工：
+        neo4j    —— 本机演示的图数据库（Cypher，多跳路径最自然）
+        postgres —— 线上托管的 PostgreSQL（SQL，数据持久化在云上，换设备也在）
+        local    —— 服务端内存图（data/kg.json 兜底，答辩现场数据库挂了也能讲）
+    auto 的优先级：neo4j → postgres → local，谁配了、连得上就用谁。
     """
     mode = settings.KG_MODE
     if mode == "local":
         return local_store, "local", True
     if mode == "neo4j":
         return neo4j_store, "neo4j", False
-    # auto：优先 Neo4j，连不上就用本地图
+    if mode in ("postgres", "postgresql", "pg"):
+        return postgres_store, "postgres", False
+    # auto：图库优先，其次是托管 PostgreSQL，最后才是本地内存图
     if neo4j_store.connect():
         return neo4j_store, "neo4j", False
+    if postgres_store.connect():
+        return postgres_store, "postgres", False
     return local_store, "local", True
