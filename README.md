@@ -222,9 +222,15 @@ INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 
 ### 4.9 线上部署（Vercel，前后端一体上线 · 零配置）
 
+**线上地址**：<https://ml-knowledge-graph-lyart.vercel.app>
+
 线上不是"只传前端"：前端页面由 FastAPI 的 `StaticFiles` 托管，后端跑在 Vercel Serverless
 （入口 `index.py`，业务代码与本地完全一致），数据是随包分发的 `data/kg.json`（113 实体 / 258 关系），
 由**服务端**加载——刷新、换电脑、清缓存都不会丢，也不依赖任何浏览器本地存储。
+
+> 配置要点：`vercel.json` 里**不要写自定义 `rewrites`**。Vercel 检测到 `fastapi` 依赖后
+> 会按原始路径自动路由全部请求，再叠加兜底重写会让所有路径变成入口文件名，导致全站 404
+> （本项目首轮部署即踩此坑，排障记录见 `docs/06_vercel_deploy.md` 第 7.1 节）。
 
 ```bash
 # 1) 推代码（GitHub Desktop：Add Local Repository → Publish，建议 Private）
